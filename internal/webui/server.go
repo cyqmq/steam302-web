@@ -2,9 +2,11 @@ package webui
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -23,7 +25,8 @@ import (
 var indexHTML []byte
 
 type Server struct {
-	Root string
+	Root  string
+	Token string // 非空时启用 HTTP Basic 鉴权（用户固定 steam302）
 }
 
 type ruleView struct {
@@ -468,15 +471,66 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
+// tokenAuth 用 HTTP Basic（用户固定 steam302）或 ?token= 参数做鉴权。
+// 本机（回环来源）免鉴权；Token 为空时一律透传（保持回环裸访问的既有行为）。
+func tokenAuth(token string, h http.Handler) http.Handler {
+	if token == "" {
+		return h
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if clientIsLoopback(r.RemoteAddr) || r.URL.Query().Get("token") == token || basicTokenOK(r, token) {
+			h.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("WWW-Authenticate", `Basic realm="steam302", charset="UTF-8"`)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+	})
+}
+
+func clientIsLoopback(remote string) bool {
+	host, _, err := net.SplitHostPort(remote)
+	if err != nil {
+		host = remote
+	}
+	return isLoopbackHost(host)
+}
+
+func basicTokenOK(r *http.Request, token string) bool {
+	user, pass, ok := r.BasicAuth()
+	if !ok || user != "steam302" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(pass), []byte(token)) == 1
+}
+
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 func (s *Server) Listen(addr string) error {
 	if s.Root == "" {
 		return errors.New("webui: empty root")
 	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return err
+	}
+	if s.Token == "" && !isLoopbackHost(host) {
+		return fmt.Errorf("webui: 监听 %s 需设置 --token（局域网/公网必须鉴权）", addr)
+	}
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           s.Handler(),
+		Handler:           tokenAuth(s.Token, s.Handler()),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-	fmt.Printf("WebUI: http://%s/\n", addr)
+	if s.Token == "" {
+		fmt.Printf("WebUI: http://%s/ (无鉴权)\n", addr)
+	} else {
+		fmt.Printf("WebUI: http://%s/ (Basic 鉴权，用户 steam302)\n", addr)
+	}
 	return srv.ListenAndServe()
 }
