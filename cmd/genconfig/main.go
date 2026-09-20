@@ -48,6 +48,14 @@ func main() {
 	if err != nil {
 		fatal("加载规则: %v", err)
 	}
+	// 域名黑名单（config/blacklist.json）：从 hosts 劫持中剔除，让其直连。
+	bl, err := rules.LoadBlacklist(filepath.Join(rootDir, "config", "blacklist.json"))
+	if err != nil {
+		fatal("加载黑名单: %v", err)
+	}
+	if len(bl) > 0 {
+		rs = rules.FilterBlacklist(rs, bl)
+	}
 	if len(rs) == 0 {
 		fmt.Fprintln(os.Stderr, "没有可用规则（全部为 enabled=false？用 --all）")
 		os.Exit(2)

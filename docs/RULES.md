@@ -119,6 +119,21 @@ bin/webui --addr 0.0.0.0:34902            # 注意：无鉴权，默认只绑本
    `env.json -> upstream_defaults` 复用节点。
 3. `python3 tools/genconfig.py --all --hosts S302.hosts` 直至 `OK`。
 
+## 域名黑名单（不走劫持、直连）
+
+`config/blacklist.json`（WebUI 顶部「域名黑名单」面板编辑），结构 `{"domains": [...]}`：
+每项支持精确域名或 `*.example.com` 通配（匹配所有子域名）。命中域名在生成
+**Caddyfile 与 hosts 片段**时都会被剔除（整个 site 被清空则不渲染），使这些域名走
+真实 DNS 直连，不经过本代理。文件已在 `.gitignore`。同步到 `/etc/hosts` 仍需
+`bin/genhosts apply S302.hosts`（或 `systemctl restart steam302-web-caddy` 会在
+`ExecStartPre` 重新生成片段后由系统重新合入）。
+
+## 规则在线编辑（WebUI）
+
+WebUI 每条规则卡片的「✎ 编辑」可查看/修改该规则的原始 JSON 并保存：
+服务端先做 JSON 解析、`sites` 非空、`id` 与文件名一致、整目录可加载等校验，通过后
+写盘、自动重新生成 Caddyfile/hosts 并跑 `caddy adapt` 校验。保留原文件换行格式。
+
 ## 已知边界
 
 - `youtube_iframe` 依赖 `web/files/iframe/iframe_api` 与 `iframe_api.js`

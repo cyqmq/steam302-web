@@ -28,10 +28,11 @@ type Mapping struct {
 
 // Config describes the forward set. PidFile/LogFile are managed by the CLI.
 type Config struct {
-	Bind     string    `json:"bind"`
-	PidFile  string    `json:"pid_file"`
-	LogFile  string    `json:"log_file"`
-	Mappings []Mapping `json:"mappings"`
+	Bind        string    `json:"bind"`
+	PidFile     string    `json:"pid_file"`
+	LogFile     string    `json:"log_file"`
+	LogMaxBytes int64     `json:"log_max_bytes"`
+	Mappings    []Mapping `json:"mappings"`
 }
 
 // IsZero reports whether the config has no mappings to run.
@@ -131,10 +132,30 @@ func proxy(c net.Conn, dst string) {
 
 // Daemon manages the detached run process through a pid file.
 type Daemon struct {
-	Bind    string
-	PidFile string
-	LogFile string
-	WorkDir string
+	Bind        string
+	PidFile     string
+	LogFile     string
+	MaxLogBytes int64 // 日志轮转阈值；<=0 使用默认 5MB
+	WorkDir     string
+}
+
+// defaultMaxLogBytes is the size (in bytes) at which the daemon log rotates.
+const defaultMaxLogBytes = 5 << 20
+
+// rotateLog renames logf to logf+".1" when it exceeds max (best effort).
+func (d *Daemon) rotateLog() {
+	if d.LogFile == "" {
+		return
+	}
+	max := d.MaxLogBytes
+	if max <= 0 {
+		max = defaultMaxLogBytes
+	}
+	info, err := os.Stat(d.LogFile)
+	if err != nil || info.Size() <= max {
+		return
+	}
+	_ = os.Rename(d.LogFile, d.LogFile+".1")
 }
 
 // Up starts the foreground listener in a detached child (self re-exec) and
@@ -153,6 +174,7 @@ func (d *Daemon) Up() (bool, error) {
 	logf := d.LogFile
 	var logfh *os.File
 	if logf != "" {
+		d.rotateLog()
 		logfh, err = os.OpenFile(logf, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
 			return false, err

@@ -18,6 +18,8 @@ func main() {
 		caYears     = flag.Int("ca-years", 10, "CA 有效期（年）")
 		leafDays    = flag.Int("leaf-days", 365, "叶证书有效期（天）")
 		enabledOnly = flag.Bool("enabled-only", false, "仅用默认启用规则的域名作为 SAN（默认覆盖全部规则）")
+		resetRoot   = flag.Bool("reset-root", false, "仅重置根证书（CA），叶证书一并重新签发")
+		resetLeaf   = flag.Bool("reset-leaf", false, "仅重置网站证书（叶证书），保留现有 CA")
 	)
 	flag.Parse()
 
@@ -57,28 +59,45 @@ func main() {
 	}
 	sort.Strings(list)
 
-	ca, err := pki.GenerateCA(*org, *caYears)
-	if err != nil {
-		fatal("生成 CA: %v", err)
+	out := *outDir
+	if out == "" {
+		out = fmt.Sprintf("%s/config/certs", root)
+	}
+
+	var (
+		ca      *pki.CA
+		keepCA  bool // 仅重置叶证书，保留现有 CA
+		writeCA bool // 是否写回 ca.pem / ca.key
+	)
+	keepCA = *resetLeaf && !*resetRoot
+	writeCA = !keepCA
+	if keepCA {
+		ca, err = pki.LoadCA(out+"/ca.pem", out+"/ca.key")
+		if err != nil {
+			fatal("加载现有 CA: %v（如 CA 缺失请去掉 --reset-leaf 全量生成）", err)
+		}
+	} else {
+		ca, err = pki.GenerateCA(*org, *caYears)
+		if err != nil {
+			fatal("生成 CA: %v", err)
+		}
 	}
 	certPEM, keyPEM, err := ca.IssueLeaf(*org, list, *leafDays)
 	if err != nil {
 		fatal("签发叶证书: %v", err)
 	}
 
-	out := *outDir
-	if out == "" {
-		out = fmt.Sprintf("%s/config/certs", root)
-	}
-	if err := pki.WriteFile(out+"/ca.pem", ca.CertPEM(), 0o644); err != nil {
-		fatal("写入 ca.pem: %v", err)
-	}
-	caKeyPEM, err := pki.MarshalECPrivateKeyPEM(ca.Key)
-	if err != nil {
-		fatal("编码 CA 私钥: %v", err)
-	}
-	if err := pki.WriteFile(out+"/ca.key", caKeyPEM, 0o600); err != nil {
-		fatal("写入 ca.key: %v", err)
+	if writeCA {
+		if err := pki.WriteFile(out+"/ca.pem", ca.CertPEM(), 0o644); err != nil {
+			fatal("写入 ca.pem: %v", err)
+		}
+		caKeyPEM, err := pki.MarshalECPrivateKeyPEM(ca.Key)
+		if err != nil {
+			fatal("编码 CA 私钥: %v", err)
+		}
+		if err := pki.WriteFile(out+"/ca.key", caKeyPEM, 0o600); err != nil {
+			fatal("写入 ca.key: %v", err)
+		}
 	}
 	if err := pki.WriteFile(out+"/leaf.pem", certPEM, 0o644); err != nil {
 		fatal("写入 leaf.pem: %v", err)
@@ -86,9 +105,13 @@ func main() {
 	if err := pki.WriteFile(out+"/leaf.key", keyPEM, 0o600); err != nil {
 		fatal("写入 leaf.key: %v", err)
 	}
+	caLabel := "新"
+	if keepCA {
+		caLabel = "现有（保留）"
+	}
 	fmt.Printf("证书已生成到 %s/\n", out)
-	fmt.Printf("  ca.pem + ca.key   (CA，%d 年)\n", *caYears)
-	fmt.Printf("  leaf.pem + leaf.key (SAN %d 个域名，%d 天)\n", len(list), *leafDays)
+	fmt.Printf("  ca.pem + ca.key   (%s CA，%d 年)\n", caLabel, *caYears)
+	fmt.Printf("  leaf.pem + leaf.key (新，SAN %d 个域名，%d 天)\n", len(list), *leafDays)
 }
 
 func fatal(format string, args ...any) {

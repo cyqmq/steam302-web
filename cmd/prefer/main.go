@@ -122,8 +122,34 @@ func runPrefer(rootDir, cacheFile string, quick, debug bool, budget time.Duratio
 				continue
 			}
 			if quick && have[entryKey(r.ID, i)] {
-				fmt.Printf("[%s/site%d] quick 模式保留现有优选结果\n", r.ID, i)
-				continue
+				// 开机快速模式：对既有优选 IP 做存活复检，全死则剔除并重测，
+				// 避免 Caddyfile 一直引用已失效的 CDN 边缘导致 502。
+				if prev := prefEntry(entries, r.ID, i); prev != nil && len(prev.Ranked) > 0 {
+					oo := opts
+					oo.SpeedTest = false
+					if sp.Mode == "cf" && len(site.Hosts) > 0 {
+						oo.ValidateHost = site.Hosts[0]
+					}
+					rankIPs := make([]string, 0, len(prev.Ranked))
+					for _, x := range prev.Ranked {
+						rankIPs = append(rankIPs, x.IP)
+					}
+					oo.Parallel = min(oo.Parallel, len(rankIPs))
+					res := prefer.Probe(rankIPs, &oo)
+					alive := 0
+					for _, x := range res {
+						if x.OK {
+							alive++
+						}
+					}
+					if alive > 0 {
+						fmt.Printf("[%s/site%d] quick 保留现有优选结果（%d/%d 存活）\n", r.ID, i, alive, len(rankIPs))
+						continue
+					}
+					entries = dropPreferEntry(entries, r.ID, i)
+					delete(have, entryKey(r.ID, i))
+					fmt.Printf("[%s/site%d] quick 现有优选 IP 已失效，重新快速探测\n", r.ID, i)
+				}
 			}
 			if time.Now().After(deadline) {
 				fmt.Printf("[%s] 超时跳过后续探测\n", r.ID)
@@ -162,6 +188,26 @@ func runPrefer(rootDir, cacheFile string, quick, debug bool, budget time.Duratio
 
 func entryKey(ruleID string, siteIdx int) string {
 	return fmt.Sprintf("%s#%d", ruleID, siteIdx)
+}
+
+func prefEntry(entries []prefer.Entry, ruleID string, siteIdx int) *prefer.Entry {
+	for i := range entries {
+		if entries[i].RuleID == ruleID && entries[i].SiteIndex == siteIdx {
+			return &entries[i]
+		}
+	}
+	return nil
+}
+
+func dropPreferEntry(entries []prefer.Entry, ruleID string, siteIdx int) []prefer.Entry {
+	out := entries[:0:0]
+	for _, e := range entries {
+		if e.RuleID == ruleID && e.SiteIndex == siteIdx {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 type siteDiag struct {

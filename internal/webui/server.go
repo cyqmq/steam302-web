@@ -37,9 +37,109 @@ type ruleView struct {
 	HostCount    int      `json:"host_count"`
 }
 
+// proxyProfile 是"复制代理参数"面板的数据：给客户端一键配置 hosts /
+// curl / PAC / 环境变量的文本片段。
+type proxyProfile struct {
+	BindIP   string   `json:"bind_ip"`
+	HTTPS    int      `json:"https_port"`
+	HTTP     int      `json:"http_port"`
+	CAExists bool     `json:"ca_exists"`
+	CAPath   string   `json:"ca_path"`
+	Hosts    []string `json:"hosts"`
+	HostsTxt string   `json:"hosts_txt"`
+	CurlCmd  string   `json:"curl_cmd"`
+	PAC      string   `json:"pac"`
+	EnvVars  string   `json:"env"`
+}
+
+func (s *Server) profile() (proxyProfile, error) {
+	env, err := rules.LoadEnv(s.envPath())
+	if err != nil {
+		return proxyProfile{}, err
+	}
+	rs, _, err := s.loadAll()
+	if err != nil {
+		return proxyProfile{}, err
+	}
+	bl, err := s.blacklist()
+	if err != nil {
+		return proxyProfile{}, err
+	}
+	if len(bl) > 0 {
+		rs = rules.FilterBlacklist(rs, bl)
+	}
+	hostSet := map[string]bool{}
+	for _, r := range rs {
+		for _, site := range r.Sites {
+			for _, h := range site.Hosts {
+				hostSet[h] = true
+			}
+		}
+	}
+	hosts := make([]string, 0, len(hostSet))
+	for h := range hostSet {
+		hosts = append(hosts, h)
+	}
+	sort.Strings(hosts)
+	bind := env.Listen.BindIP
+	if bind == "" {
+		bind = "127.0.0.1"
+	}
+	if env.Listen.HTTPSPort == 0 {
+		env.Listen.HTTPSPort = 25584
+	}
+	if env.Listen.HTTPPort == 0 {
+		env.Listen.HTTPPort = 24196
+	}
+	caPath := filepath.Join(s.Root, "config", "certs", "ca.pem")
+	_, caErr := os.Stat(caPath)
+	caExists := caErr == nil
+
+	hostsTxt := ""
+	for _, h := range hosts {
+		hostsTxt += fmt.Sprintf("%s\t%s\n", bind, h)
+	}
+
+	curlCmd := ""
+	curlEnv := ""
+	concrete := ""
+	for _, h := range hosts {
+		if !strings.Contains(h, "*") {
+			concrete = h
+			break
+		}
+	}
+	if concrete != "" {
+		curlCmd = fmt.Sprintf("curl --resolve %s:%d:%s --cacert %s https://%s/",
+			concrete, env.Listen.HTTPSPort, bind, caPath, concrete)
+		curlEnv = fmt.Sprintf("export HTTPS_PROXY=http://%s:%d\nexport HTTP_PROXY=http://%s:%d\nexport CURL_CA_BUNDLE=%s\n",
+			bind, env.Listen.HTTPPort, bind, env.Listen.HTTPPort, caPath)
+	}
+	pac := fmt.Sprintf("function FindProxyForURL(url, host) { /* 需先信任 %s 的 CA */\n  return \"HTTPS %s:%d\";\n}\n",
+		caPath, bind, env.Listen.HTTPSPort)
+
+	return proxyProfile{
+		BindIP:   bind,
+		HTTPS:    env.Listen.HTTPSPort,
+		HTTP:     env.Listen.HTTPPort,
+		CAExists: caExists,
+		CAPath:   caPath,
+		Hosts:    hosts,
+		HostsTxt: hostsTxt,
+		CurlCmd:  curlCmd,
+		PAC:      pac,
+		EnvVars:  curlEnv,
+	}, nil
+}
+
 func (s *Server) overridesPath() string { return filepath.Join(s.Root, "config", "overrides.json") }
 func (s *Server) rulesDir() string      { return filepath.Join(s.Root, "config", "rules") }
 func (s *Server) envPath() string       { return filepath.Join(s.Root, "config", "env.json") }
+func (s *Server) blacklistPath() string { return filepath.Join(s.Root, "config", "blacklist.json") }
+
+func (s *Server) blacklist() ([]string, error) {
+	return rules.LoadBlacklist(s.blacklistPath())
+}
 
 func (s *Server) loadAll() ([]rules.Rule, map[string]bool, error) {
 	ov, err := rules.LoadOverrides(s.overridesPath())
@@ -111,6 +211,13 @@ func (s *Server) regenerate() (regenResult, error) {
 	rs, err := rules.LoadRulesWithOverrides(s.rulesDir(), false, ov)
 	if err != nil {
 		return regenResult{}, err
+	}
+	bl, err := s.blacklist()
+	if err != nil {
+		return regenResult{}, err
+	}
+	if len(bl) > 0 {
+		rs = rules.FilterBlacklist(rs, bl)
 	}
 	pref, err := prefer.Load(filepath.Join(s.Root, prefer.Path))
 	if err != nil {
@@ -228,6 +335,134 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		writeJSON(w, 200, map[string]any{"ok": true, "regen": res})
+	})
+
+	mux.HandleFunc("GET /api/profile", func(w http.ResponseWriter, r *http.Request) {
+		p, err := s.profile()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, p)
+	})
+
+	// 规则编辑器：GET 原始 JSON 文本；PUT 校验后写盘并重生成。
+	// id 仅允许 [a-z0-9_]，杜绝路径穿越。
+	validRuleID := func(id string) bool {
+		if id == "" || len(id) > 64 {
+			return false
+		}
+		for _, c := range id {
+			if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_') {
+				return false
+			}
+		}
+		return true
+	}
+	mux.HandleFunc("GET /api/rule/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if !validRuleID(id) {
+			writeJSON(w, 400, map[string]string{"error": "非法规则 id"})
+			return
+		}
+		path := filepath.Join(s.rulesDir(), id+".json")
+		text, err := os.ReadFile(path)
+		if err != nil {
+			writeJSON(w, 404, map[string]string{"error": "规则不存在: " + id})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"id": id, "name": id, "text": string(text)})
+	})
+	mux.HandleFunc("PUT /api/rule/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if !validRuleID(id) {
+			writeJSON(w, 400, map[string]string{"error": "非法规则 id"})
+			return
+		}
+		var body struct {
+			Text string `json:"text"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Text) == "" {
+			writeJSON(w, 400, map[string]string{"error": "body 需为 {\"text\": \"...\"}"})
+			return
+		}
+		var rl rules.Rule
+		if err := json.Unmarshal([]byte(body.Text), &rl); err != nil {
+			writeJSON(w, 400, map[string]string{"error": "JSON 无效: " + err.Error()})
+			return
+		}
+		if len(rl.Sites) == 0 {
+			writeJSON(w, 400, map[string]string{"error": "规则至少要有一个 sites 条目"})
+			return
+		}
+		if rl.ID != "" && rl.ID != id {
+			writeJSON(w, 400, map[string]string{"error": "规则 id 必须与文件名一致（= " + id + "）"})
+			return
+		}
+		rl.ID = id
+		// 写完先做一次磁盘级校验：能连同其他规则一起加载才算成功。
+		path := filepath.Join(s.rulesDir(), id+".json")
+		if err := os.WriteFile(path, []byte(body.Text), 0o644); err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		if _, _, err := s.loadAll(); err != nil {
+			writeJSON(w, 500, map[string]string{"error": "规则集校验失败: " + err.Error()})
+			return
+		}
+		res, err := s.regenerate()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "rule": id, "regen": res})
+	})
+
+	// 域名黑名单：GET 返回列表；PUT 用 {"domains": [...]} 整体替换。
+	mux.HandleFunc("GET /api/blacklist", func(w http.ResponseWriter, r *http.Request) {
+		bl, err := s.blacklist()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"domains": bl})
+	})
+	mux.HandleFunc("PUT /api/blacklist", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Domains []string `json:"domains"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, 400, map[string]string{"error": "body 需为 {\"domains\": [...]}"})
+			return
+		}
+		seen := map[string]bool{}
+		var clean []string
+		for _, d := range body.Domains {
+			d = strings.TrimSpace(d)
+			if d == "" || strings.ContainsAny(d, " \t/") {
+				writeJSON(w, 400, map[string]string{"error": "非法域名: " + d})
+				return
+			}
+			if !seen[d] {
+				seen[d] = true
+				clean = append(clean, d)
+			}
+		}
+		data, err := json.MarshalIndent(map[string]any{"domains": clean}, "", "  ")
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := os.WriteFile(s.blacklistPath(), append(data, '\n'), 0o644); err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		res, err := s.regenerate()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "count": len(clean), "regen": res})
 	})
 
 	return mux

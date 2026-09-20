@@ -13,6 +13,7 @@ config/overrides.json
 config/s302fwd.pid
 config/s302fwd.log
 config/prefer.json
+config/blacklist.json
 *.log
 
 # 系统

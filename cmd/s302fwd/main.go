@@ -36,10 +36,11 @@ func main() {
 		Mappings: maps(env.Fwd.Mappings),
 	}
 	daemon := &fwd.Daemon{
-		Bind:    cf.Bind,
-		PidFile: cf.PidFile,
-		LogFile: cf.LogFile,
-		WorkDir: rootDir,
+		Bind:        cf.Bind,
+		PidFile:     cf.PidFile,
+		LogFile:     cf.LogFile,
+		MaxLogBytes: cf.LogMaxBytes,
+		WorkDir:     rootDir,
 	}
 
 	switch cmd {

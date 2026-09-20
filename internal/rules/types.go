@@ -30,10 +30,11 @@ type PreferConfig struct {
 }
 
 type Fwd struct {
-	Bind     string   `json:"bind"`
-	PidFile  string   `json:"pid_file"`
-	LogFile  string   `json:"log_file"`
-	Mappings []FwdMap `json:"mappings"`
+	Bind        string   `json:"bind"`
+	PidFile     string   `json:"pid_file"`
+	LogFile     string   `json:"log_file"`
+	LogMaxBytes int64    `json:"log_max_bytes"` // 达到该字节数时轮转（0=默认 5MB）
+	Mappings    []FwdMap `json:"mappings"`
 }
 
 type FwdMap struct {

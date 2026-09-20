@@ -270,6 +270,9 @@ func renderExtraHeaders(prefix string, headers []Header) string {
 }
 
 func renderSite(site Site, env *Env, pref *prefer.Cache, ruleID string, siteIdx int) string {
+	if len(site.Hosts) == 0 {
+		return ""
+	}
 	if pref != nil {
 		if e := pref.Entry(ruleID, siteIdx); e != nil && len(e.Ranked) > 0 {
 			site = applyPreferred(site, e)

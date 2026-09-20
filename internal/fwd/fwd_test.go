@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -104,4 +106,35 @@ func atoi(t *testing.T, s string) int {
 		t.Fatal(err)
 	}
 	return n
+}
+
+func TestRotateLog(t *testing.T) {
+	dir := t.TempDir()
+	logf := filepath.Join(dir, "fwd.log")
+
+	for _, tc := range []struct {
+		name string
+		size int64
+		max  int64
+		want bool // 是否应发生轮转
+	}{
+		{"超过阈值轮转", 6 << 20, 5 << 20, true},
+		{"等于阈值不轮转", 5 << 20, 5 << 20, false},
+		{"远小于阈值不轮转", 1 << 10, 5 << 20, false},
+		{"默认阈值轮转", 6 << 20, 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := os.WriteFile(logf, make([]byte, tc.size), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			_ = os.Remove(logf + ".1")
+			d := &Daemon{LogFile: logf, MaxLogBytes: tc.max}
+			d.rotateLog()
+			_, rotated := os.Stat(logf + ".1")
+			if tc.want != (rotated == nil) {
+				t.Fatalf("rotate=%v want=%v", rotated == nil, tc.want)
+			}
+			_ = os.Remove(logf)
+		})
+	}
 }

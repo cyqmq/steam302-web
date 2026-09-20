@@ -45,9 +45,9 @@
 
 | 原版设置项 | 现状 |
 | --- | --- |
-| 重置根证书 / 重置网站证书（分开重置） | `bin/genpki` **一次同时重置** CA 与叶证书（SAN 覆盖规则域名），无单独的根/网站拆分开关；设置见 `--ca-years/--leaf-days/--enabled-only` |
+| 重置根证书 / 重置网站证书（分开重置） | `bin/genpki --reset-root`（仅重置 CA，叶一并重签）/ `--reset-leaf`（保留 CA 只签叶）|
 | 启用 DNS 重定向模式 | 本仓库通过 **hosts 劫持**（本质即 DNS 重定向的一种落地）导通流量；**不**劫持 53/UDP，不提供 DNS over TCP 服务 |
-| 日志自动清除 | Caddy 日志进 journald（systemd 自动轮转）；但 `config/s302fwd.log` 为追加无上限，需用户自行 `logrotate` |
+| 日志自动清除 | Caddy 日志进 journald（systemd 自动轮转）；`config/s302fwd.log` 按体积轮转（默认 `fwd.log_max_bytes` 5MB，超限改为 `.1`） |
 | 输出 DNS 重定向日志 | 未输出按域名请求日志；基础运行日志走 journald / s302fwd.log |
 | CDN 优选 | 已实现 `bin/prefer`（node=接入节点 / cf=Cloudflare 段抽样实测），systemd 启动前 `--quick` 补齐缓存并渲染为 Caddyfile 前置 IP；`speed_test` 时按下载速率排序，否则按延迟 |
 
@@ -58,9 +58,9 @@
 | CDN 优选（Akamai/CF/Fastly 启动测速选最快） | ✅ `bin/prefer`；见上表"CDN 优选"行 |
 | 测速速率限制 | ❌（无测速，故无带宽限制） |
 | DNS 重定向 CDN 优选 | ❌ 依赖上面的 CDN 优选，未实现 |
-| 用户自定义规则编辑器（铅笔图标）/ 域名黑名单 | ❌ 规则以 JSON 编辑；无 GUI 编辑器、暂无黑名单功能 |
-| 复制代理设置参数（剪贴板/PAC/环境变量） | ❌ 服务端无剪贴板；校验命令见 README「验证」节 |
-| 界面主题（亮/暗） | ❌ WebUI 当前为静态页，无主题切换 |
+| 用户自定义规则编辑器（铅笔图标）/ 域名黑名单 | ✅ WebUI 每条规则「✎ 编辑」直接改 JSON（校验后重生成）；顶部「域名黑名单」面板（`config/blacklist.json`，支持 `*.example.com`，命中域名不进 hosts 劫持走直连） |
+| 复制代理设置参数（剪贴板/PAC/环境变量） | ✅ WebUI「复制代理参数」面板：Hosts 劫持片段 / curl 验证命令 / PAC / 环境变量四种格式一键复制 |
+| 界面主题（亮/暗） | ✅ WebUI 顶部切换（CSS 变量 + localStorage 记忆，默认暗色） |
 | 自动修改代理（Windows） | ⏹ 不适用：本仓库是 Linux 服务器端；Windows 客户端需自行配置系统代理/PAC |
 | 监听端口 & 代理模式（自动配代理联动） | ⏹ 服务端无"自动配置客户端代理"能力 |
 | 支持开发者弹窗（每周） | ⏹ GUI 专属，服务器端不适用 |

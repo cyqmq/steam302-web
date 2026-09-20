@@ -88,6 +88,39 @@ func (ca *CA) CertPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Cert.Raw})
 }
 
+// LoadCA reads a CA certificate + EC private key pair from disk.
+func LoadCA(certPath, keyPath string) (*CA, error) {
+	certPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, err
+	}
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, err
+	}
+	cb, _ := pem.Decode(certPEM)
+	if cb == nil || cb.Type != "CERTIFICATE" {
+		return nil, errors.New("load CA: bad certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(cb.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	kb, _ := pem.Decode(keyPEM)
+	if kb == nil {
+		return nil, errors.New("load CA: bad key PEM")
+	}
+	der := kb.Bytes
+	if x509.IsEncryptedPEMBlock(kb) {
+		return nil, errors.New("load CA: encrypted keys not supported")
+	}
+	key, err := x509.ParseECPrivateKey(der)
+	if err != nil {
+		return nil, fmt.Errorf("load CA key: %w", err)
+	}
+	return &CA{Cert: cert, Key: key}, nil
+}
+
 func MarshalECPrivateKeyPEM(key *ecdsa.PrivateKey) ([]byte, error) {
 	der, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
