@@ -172,7 +172,7 @@ func TestProfileEndpoint(t *testing.T) {
 	}{
 		{true, `host === "a.example.com" || host.endsWith(".a.example.com")`},
 		{true, `return "DIRECT";`},
-		{false, `return "HTTPS` + `"`},// 白名单式 PAC 不应再无条件全代理
+		{false, `return "HTTPS` + `"`}, // 白名单式 PAC 不应再无条件全代理
 
 	} {
 		got := strings.Contains(p.PAC, assert.contains)

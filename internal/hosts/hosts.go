@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 )
 
 // Split divides content into lines that do NOT carry marker and those that do.
@@ -91,6 +93,52 @@ func Backup(path, backupDir string) error {
 		return err
 	}
 	return os.WriteFile(bak, data, 0o644)
+}
+
+// Snapshot copies path into newHosts.../hosts.bak.<unix> and prunes older
+// snapshots down to keep (the newest are kept). keep<=0 disables pruning.
+func Snapshot(path, backupDir string, keep int) error {
+	if _, err := os.Stat(path); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(backupDir, fmt.Sprintf("hosts.bak.%d", time.Now().UnixNano())), data, 0o644); err != nil {
+		return err
+	}
+	if keep > 0 {
+		Prune(backupDir, keep)
+	}
+	return nil
+}
+
+// Prune removes oldest hosts.bak.* snapshots beyond the newest keep.
+func Prune(backupDir string, keep int) error {
+	if keep <= 0 {
+		return nil
+	}
+	entries, err := os.ReadDir(backupDir)
+	if err != nil {
+		return err
+	}
+	var snaps []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), "hosts.bak.") {
+			snaps = append(snaps, e.Name())
+		}
+	}
+	sort.Strings(snaps) // 文件名带 UnixNano，字典序即时间序
+	for len(snaps) > keep {
+		old := snaps[0]
+		snaps = snaps[1:]
+		_ = os.Remove(filepath.Join(backupDir, old))
+	}
+	return nil
 }
 
 // Revert restores hosts.bak from backupDir onto path.

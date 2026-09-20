@@ -40,6 +40,18 @@ type ruleView struct {
 	HostCount    int      `json:"host_count"`
 }
 
+// settingsView 是「设置」页面的可编辑配置子集（从 config/env.json 派生）。
+type settingsView struct {
+	BindIP      string             `json:"bind_ip"`
+	LogMaxBytes int64              `json:"log_max_bytes"`
+	BackupKeep  int                `json:"backup_keep"`
+	CAYears     int                `json:"ca_years"`
+	LeafDays    int                `json:"leaf_days"`
+	AutoStart   bool               `json:"autostart"`
+	CertExists  bool               `json:"cert_exists"`
+	Prefer      rules.PreferConfig `json:"prefer"`
+}
+
 // proxyProfile 是"复制代理参数"面板的数据：给客户端一键配置 hosts /
 // curl / PAC / 环境变量的文本片段。
 type proxyProfile struct {
@@ -278,6 +290,89 @@ func (s *Server) validate(caddyfile string) string {
 	return "ok"
 }
 
+// ---- 设置 ----
+
+const (
+	defaultCAYears  = 10
+	defaultLeafDays = 365
+	defaultLogBytes = 5 << 20
+	defaultKeep     = 100
+)
+
+func (s *Server) loadEnv() (rules.Env, error) {
+	var env rules.Env
+	data, err := os.ReadFile(s.envPath())
+	if err != nil {
+		return env, err
+	}
+	if err := json.Unmarshal(data, &env); err != nil {
+		return env, err
+	}
+	return env, nil
+}
+
+func (s *Server) saveEnv(env rules.Env) error {
+	data, err := json.MarshalIndent(env, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(s.envPath(), append(data, '\n'), 0o644)
+}
+
+func (s *Server) autostartEnabled() bool {
+	out, err := exec.Command("systemctl", "is-enabled", "steam302-web-caddy").CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) == "enabled"
+}
+
+func (s *Server) settings() settingsView {
+	env, err := s.loadEnv()
+	if err != nil {
+		env = rules.Env{}
+	}
+	if env.Cert.CAYears == 0 {
+		env.Cert.CAYears = defaultCAYears
+	}
+	if env.Cert.LeafDays == 0 {
+		env.Cert.LeafDays = defaultLeafDays
+	}
+	if env.Fwd.LogMaxBytes == 0 {
+		env.Fwd.LogMaxBytes = defaultLogBytes
+	}
+	if env.Hosts.BackupKeep == 0 {
+		env.Hosts.BackupKeep = defaultKeep
+	}
+	if env.Listen.BindIP == "" {
+		env.Listen.BindIP = "127.0.0.1"
+	}
+	_, statErr := os.Stat(filepath.Join(s.Root, "config", "certs", "ca.pem"))
+	return settingsView{
+		BindIP:      env.Listen.BindIP,
+		LogMaxBytes: env.Fwd.LogMaxBytes,
+		BackupKeep:  env.Hosts.BackupKeep,
+		CAYears:     env.Cert.CAYears,
+		LeafDays:    env.Cert.LeafDays,
+		AutoStart:   s.autostartEnabled(),
+		CertExists:  statErr == nil,
+		Prefer:      env.Prefer,
+	}
+}
+
+func (s *Server) applyEnable(units []string, enabled bool) error {
+	verb := "disable"
+	if enabled {
+		verb = "enable"
+	}
+	args := append([]string{verb}, units...)
+	out, err := exec.Command("systemctl", args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("systemctl %s: %v\n%s", verb, err, out)
+	}
+	return nil
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
@@ -511,7 +606,167 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, 200, map[string]any{"ok": true, "count": len(clean), "regen": res})
 	})
 
+	// 设置：GET 返回可编辑子集；PUT 局部更新（省略字段不变），校验后写 env.json。
+	mux.HandleFunc("GET /api/settings", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, s.settings())
+	})
+	mux.HandleFunc("PUT /api/settings", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			BindIP      *string             `json:"bind_ip"`
+			LogMaxBytes *int64              `json:"log_max_bytes"`
+			BackupKeep  *int                `json:"backup_keep"`
+			CAYears     *int                `json:"ca_years"`
+			LeafDays    *int                `json:"leaf_days"`
+			Prefer      *rules.PreferConfig `json:"prefer"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, 400, map[string]string{"error": "body 无效: " + err.Error()})
+			return
+		}
+		if body.BindIP != nil && net.ParseIP(*body.BindIP) == nil {
+			writeJSON(w, 400, map[string]string{"error": "bind_ip 不是有效 IP"})
+			return
+		}
+		if body.LogMaxBytes != nil && *body.LogMaxBytes < 0 {
+			writeJSON(w, 400, map[string]string{"error": "log_max_bytes 不能为负"})
+			return
+		}
+		if body.BackupKeep != nil && (*body.BackupKeep < 0 || *body.BackupKeep > 10000) {
+			writeJSON(w, 400, map[string]string{"error": "backup_keep 须在 0~10000"})
+			return
+		}
+		if body.CAYears != nil && (*body.CAYears < 1 || *body.CAYears > 100) {
+			writeJSON(w, 400, map[string]string{"error": "ca_years 须在 1~100"})
+			return
+		}
+		if body.LeafDays != nil && (*body.LeafDays < 1 || *body.LeafDays > 3650) {
+			writeJSON(w, 400, map[string]string{"error": "leaf_days 须在 1~3650"})
+			return
+		}
+		env, err := s.loadEnv()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": "读取 env.json: " + err.Error()})
+			return
+		}
+		if body.BindIP != nil {
+			env.Listen.BindIP = *body.BindIP
+		}
+		if body.LogMaxBytes != nil {
+			env.Fwd.LogMaxBytes = *body.LogMaxBytes
+		}
+		if body.BackupKeep != nil {
+			env.Hosts.BackupKeep = *body.BackupKeep
+		}
+		if body.CAYears != nil {
+			env.Cert.CAYears = *body.CAYears
+		}
+		if body.LeafDays != nil {
+			env.Cert.LeafDays = *body.LeafDays
+		}
+		if body.Prefer != nil {
+			// 只允许覆盖数值/开关字段，download_url 等保留现有
+			p := env.Prefer
+			if body.Prefer.Enabled != p.Enabled {
+				p.Enabled = body.Prefer.Enabled
+			}
+			if body.Prefer.SpeedTest != p.SpeedTest {
+				p.SpeedTest = body.Prefer.SpeedTest
+			}
+			if body.Prefer.LatencyTimeoutMS != 0 {
+				p.LatencyTimeoutMS = body.Prefer.LatencyTimeoutMS
+			}
+			if body.Prefer.Parallel != 0 {
+				p.Parallel = body.Prefer.Parallel
+			}
+			if body.Prefer.MaxMbps >= 0 {
+				p.MaxMbps = body.Prefer.MaxMbps
+			}
+			if body.Prefer.TopN != 0 {
+				p.TopN = body.Prefer.TopN
+			}
+			if body.Prefer.SamplesPerCIDR != 0 {
+				p.SamplesPerCIDR = body.Prefer.SamplesPerCIDR
+			}
+			env.Prefer = p
+		}
+		if err := s.saveEnv(env); err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, s.settings())
+	})
+
+	// 证书重置：root=复位根证书(CA+叶重签)、leaf=仅重签叶。
+	mux.HandleFunc("POST /api/settings/certs/{which}", func(w http.ResponseWriter, r *http.Request) {
+		which := r.PathValue("which")
+		var arg string
+		switch which {
+		case "root":
+			arg = "--reset-root"
+		case "leaf":
+			arg = "--reset-leaf"
+		default:
+			writeJSON(w, 400, map[string]string{"error": "which 仅支持 root|leaf"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, filepath.Join(s.Root, "bin", "genpki"), arg, "--root", s.Root).CombinedOutput()
+		if err != nil {
+			writeJSON(w, 200, map[string]any{"ok": false, "output": string(out), "error": err.Error()})
+			return
+		}
+		applyOut, applyErr := s.runApply()
+		writeJSON(w, 200, map[string]any{
+			"ok": true, "output": string(out),
+			"reload": map[string]any{"ok": applyErr == nil, "output": applyOut},
+		})
+	})
+
+	// 开机自启：enable/disable 三个 systemd 服务。
+	mux.HandleFunc("POST /api/settings/autostart", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, 400, map[string]string{"error": "body 需为 {\"enabled\": true|false}"})
+			return
+		}
+		units := []string{"steam302-web-caddy.service", "steam302-web-fwd.service", "steam302-web-webui.service"}
+		if err := s.applyEnable(units, body.Enabled); err != nil {
+			writeJSON(w, 200, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "enabled": body.Enabled})
+	})
+
+	// 恢复出厂：bin/reset（停服、取消自启、撤销 hosts 劫持、清理生成物）。
+	mux.HandleFunc("POST /api/settings/reset", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Confirm bool `json:"confirm"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || !body.Confirm {
+			writeJSON(w, 400, map[string]string{"error": "需 {\"confirm\": true}"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, "sudo", "-n", filepath.Join(s.Root, "bin", "reset"), "--root", s.Root).CombinedOutput()
+		if err != nil {
+			writeJSON(w, 200, map[string]any{"ok": false, "output": string(out), "error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "output": string(out)})
+	})
+
 	return mux
+}
+
+func (s *Server) runApply() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "sudo", "-n", filepath.Join(s.Root, "bin", "apply"), "--root", s.Root).CombinedOutput()
+	return string(out), err
 }
 
 // tokenAuth 用 HTTP Basic（用户固定 steam302）或 ?token= 参数做鉴权。

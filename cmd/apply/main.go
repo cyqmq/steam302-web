@@ -51,6 +51,10 @@ func main() {
 	if backupDir == "" {
 		backupDir = filepath.Join(rootDir, "config", "hosts_backup")
 	}
+	backupKeep := env.Hosts.BackupKeep
+	if backupKeep == 0 {
+		backupKeep = 100
+	}
 
 	fmt.Println("[1/3] bin/genconfig 重生成配置…")
 	if out, err := exec.Command(gen, "--root", rootDir).CombinedOutput(); err != nil {
@@ -61,9 +65,9 @@ func main() {
 		fatal("读取 %s: %v", hsFile, err)
 	}
 
-	fmt.Printf("[2/3] 写入 %s（marker %s，先备份）…\n", hsPath, marker)
-	if err := hosts.Backup(hsPath, backupDir); err != nil {
-		fatal("备份 %s: %v", hsPath, err)
+	fmt.Printf("[2/3] 写入 %s（marker %s，先快照保留 %d 份）…\n", hsPath, marker, backupKeep)
+	if err := hosts.Snapshot(hsPath, backupDir, backupKeep); err != nil {
+		fatal("快照 %s: %v", hsPath, err)
 	}
 	if _, err := hosts.MustApply(hsPath, marker, string(block), false); err != nil {
 		fatal("写入 %s: %v", hsPath, err)

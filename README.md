@@ -45,11 +45,14 @@
 
 | 原版设置项 | 现状 |
 | --- | --- |
-| 重置根证书 / 重置网站证书（分开重置） | `bin/genpki --reset-root`（仅重置 CA，叶一并重签）/ `--reset-leaf`（保留 CA 只签叶）|
+| 重置根证书 / 重置网站证书（分开重置） | ✅ WebUI「设置」页按钮（内部 `genpki --reset-root`/`--reset-leaf`，重置后自动重载）；CLI 亦可 |
+| 证书有效期 | ✅ WebUI「设置」页可改 CA 年数/叶天数（写 `env.json → cert.ca_years/leaf_days`，genpki 未带 flag 时读之；默认 10 年 / 365 天）|
 | 启用 DNS 重定向模式 | 本仓库通过 **hosts 劫持**（本质即 DNS 重定向的一种落地）导通流量；**不**劫持 53/UDP，不提供 DNS over TCP 服务 |
-| 日志自动清除 | Caddy 日志进 journald（systemd 自动轮转）；`config/s302fwd.log` 按体积轮转（默认 `fwd.log_max_bytes` 5MB，超限改为 `.1`） |
+| 日志自动清除 | Caddy 日志进 journald（systemd 自动轮转）；`config/s302fwd.log` 按体积轮转（WebUI「设置」页可调 `fwd.log_max_bytes`，默认 5MB，超限改为 `.1`） |
 | 输出 DNS 重定向日志 | 未输出按域名请求日志；基础运行日志走 journald / s302fwd.log |
 | CDN 优选 | 已实现 `bin/prefer`（node=接入节点 / cf=Cloudflare 段抽样实测），systemd 启动前 `--quick` 补齐缓存并渲染为 Caddyfile 前置 IP；`speed_test` 时按下载速率排序，否则按延迟 |
+| 监听 IP / 测速限速 / 备份保留数量 | ✅ WebUI「设置」页：`listen.bind_ip`、`prefer.max_mbps`（当前 20）与并行/采样等数值、`hosts.backup_keep`（快照保留数，0=不清理） |
+| 开机自启 & 重置所有设置（恢复出厂） | ✅ WebUI「设置」页：开机自启开关（systemctl enable/disable 三服务）；「恢复出厂设置」＝ `bin/reset`（停服＋撤自启＋撤销 hosts 劫持＋清证书/生成物，**保留**规则与 env.json） |
 
 ### 未实现 / 本机不适用 ❌ / ⏹
 
@@ -105,6 +108,7 @@ go build -o bin/genpki    ./cmd/genpki
 go build -o bin/s302fwd   ./cmd/s302fwd
 go build -o bin/webui     ./cmd/webui
 go build -o bin/apply     ./cmd/apply
+go build -o bin/reset     ./cmd/reset
 
 # 1) 生成证书（自签 CA + 叶证书，SAN 覆盖规则域名）
 bin/genpki

@@ -54,12 +54,17 @@ type Cert struct {
 	CertFile string `json:"cert_file"`
 	KeyFile  string `json:"key_file"`
 	CAFile   string `json:"ca_file"`
+	// CAYears/LeafDays 是 genpki 未显式传 flag 时的默认有效期（0=用内置默认 10年/365天）。
+	CAYears  int `json:"ca_years,omitempty"`
+	LeafDays int `json:"leaf_days,omitempty"`
 }
 
 type Hosts struct {
 	Marker    string `json:"marker"`
 	BackupDir string `json:"backup_dir"`
 	File      string `json:"file"`
+	// BackupKeep 是 hosts 快照保留数量；0 表示关闭快照清理。
+	BackupKeep int `json:"backup_keep,omitempty"`
 }
 
 type Rule struct {

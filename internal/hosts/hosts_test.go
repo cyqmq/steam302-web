@@ -1,6 +1,7 @@
 package hosts
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -70,5 +71,32 @@ func TestBackupRevert(t *testing.T) {
 	got, _ := Read(path)
 	if got != "127.0.0.1 localhost\n" {
 		t.Errorf("revert mismatch: %q", got)
+	}
+}
+
+func TestSnapshotPrune(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/hosts"
+	bak := dir + "/backup"
+	if err := writeAtomic(path, "127.0.0.1 localhost\n"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 6; i++ {
+		if err := Snapshot(path, bak, 3); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := os.ReadDir(bak)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "hosts.bak.") {
+			n++
+		}
+	}
+	if n != 3 {
+		t.Fatalf("expected 3 snapshots kept, got %d", n)
 	}
 }

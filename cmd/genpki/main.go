@@ -35,6 +35,18 @@ func main() {
 		fatal("未找到 config/rules 目录（请从项目目录运行或用 --root 指定）")
 	}
 
+	// 未显式传 flag 时，有效期默认读 config/env.json 的 cert.ca_years / cert.leaf_days。
+	set := map[string]bool{}
+	flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	if env, err := rules.LoadEnv(root + "/config/env.json"); err == nil {
+		if !set["ca-years"] && env.Cert.CAYears > 0 {
+			*caYears = env.Cert.CAYears
+		}
+		if !set["leaf-days"] && env.Cert.LeafDays > 0 {
+			*leafDays = env.Cert.LeafDays
+		}
+	}
+
 	rs, err := rules.LoadRules(fmt.Sprintf("%s/config/rules", root), true)
 	if err != nil {
 		fatal("加载规则: %v", err)

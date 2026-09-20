@@ -67,6 +67,16 @@
   .tabs button.active { opacity: 1; }
   textarea { width: 100%; min-height: 120px; font: 12px/1.45 ui-monospace, monospace; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; resize: vertical; }
   .modal .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .modal input[type=text], .modal input[type=number] { background: var(--tag); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; box-sizing: border-box; min-width: 0; }
+  .modal input[type=text] { width: 100%; }
+  .modal input[type=number] { width: 100%; }
+  .sec { margin: 16px 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .sec.danger { color: #d98a8a; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .grid .chk { flex-direction: row; align-items: center; gap: 8px; margin-top: 16px; }
+  button.danger { background: #a93b3b; color: #fff; border: none; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
+  button.danger:hover { filter: brightness(1.1); }
   .modal .count { color: var(--muted); font-size: 12px; }
   button.mini { padding: 2px 9px; font-size: 12px; background: var(--ghost); }
 </style>
@@ -81,6 +91,7 @@
     <button class="ghost" id="theme">☾ 暗色</button>
     <button class="ghost" id="regen">重新生成配置</button>
     <button class="ghost" id="apply">一键应用</button>
+    <button class="ghost" id="settings">设置</button>
   </span>
 </header>
 <main id="app"></main>
@@ -107,6 +118,51 @@
       <button id="edSave">保存并重生成</button>
       <span class="count" id="edCount"></span>
       <button class="ghost" id="edClose" style="margin-left:auto;">关闭</button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="setBackdrop">
+  <div class="modal" style="min-width:640px;">
+    <h3>设置</h3>
+    <div class="hint">修改后点「保存设置」写入 config/env.json；重启类操作见下方按钮。证书/自启/恢复出厂需 root（本机 webui 常以 root 运行）。</div>
+    <div style="max-height:60vh;overflow:auto;padding-right:6px;">
+      <div class="sec">基础</div>
+      <div class="grid">
+        <label>本地监听 IP <input id="stBind" type="text" placeholder="127.0.0.1"></label>
+        <label>s302fwd 日志轮转(字节) <input id="stLog" type="number" min="0" step="1048576"></label>
+        <label>hosts 快照保留数 <input id="stKeep" type="number" min="0" max="10000"></label>
+      </div>
+      <div class="sec">证书（genpki 未带参数时的默认有效期）</div>
+      <div class="grid">
+        <label>CA 有效期(年) <input id="stCA" type="number" min="1" max="100"></label>
+        <label>叶证书有效期(天) <input id="stLeaf" type="number" min="1" max="3650"></label>
+        <div class="row" style="margin-top:14px;">
+          <button class="ghost" id="stResetRoot">重置根证书</button>
+          <button class="ghost" id="stResetLeaf">重置网站证书</button>
+          <span class="count" id="stCertInfo"></span>
+        </div>
+      </div>
+      <div class="sec">CDN 优选（全局默认，规则内可覆盖）</div>
+      <div class="grid">
+        <label class="chk"><input id="stPrefEn" type="checkbox"> 启用优选</label>
+        <label class="chk"><input id="stPrefSpeed" type="checkbox"> 测速</label>
+        <label>限速 max_mbps <input id="stPrefMb" type="number" min="0" step="1"></label>
+        <label>并行数 <input id="stPrefPar" type="number" min="1"></label>
+        <label>延迟超时(ms) <input id="stPrefLt" type="number" min="100"></label>
+        <label>Top N <input id="stPrefTop" type="number" min="1"></label>
+        <label>每 CIDR 采样 <input id="stPrefSpl" type="number" min="1"></label>
+      </div>
+      <div class="sec">系统</div>
+      <div class="grid">
+        <label class="chk"><input id="stAuto" type="checkbox"> 开机自启（systemd）</label>
+      </div>
+      <div class="sec danger">危险区</div>
+      <button class="danger" id="stResetFactory">恢复出厂设置（停服＋撤自启＋撤销 hosts＋清理生成物；保留规则/env）</button>
+    </div>
+    <div class="row" style="margin-top:12px;">
+      <button id="stSave">保存设置</button>
+      <span class="count" id="stCount"></span>
+      <button class="ghost" id="stClose" style="margin-left:auto;">关闭</button>
     </div>
   </div>
 </div>
@@ -352,6 +408,90 @@ document.getElementById("edSave").onclick = async () => {
 };
 document.getElementById("edClose").onclick = () => edBackdrop.classList.remove("show");
 edBackdrop.addEventListener("click", e => { if (e.target === edBackdrop) edBackdrop.classList.remove("show"); });
+
+// ---- 设置 ----
+const setBackdrop = document.getElementById("setBackdrop");
+const $s = id => document.getElementById(id);
+
+async function loadSettings() {
+  try {
+    const s = await api("GET", "/api/settings");
+    $s("stBind").value = s.bind_ip;
+    $s("stLog").value = s.log_max_bytes;
+    $s("stKeep").value = s.backup_keep;
+    $s("stCA").value = s.ca_years;
+    $s("stLeaf").value = s.leaf_days;
+    $s("stPrefEn").checked = s.prefer.enabled;
+    $s("stPrefSpeed").checked = s.prefer.speed_test;
+    $s("stPrefMb").value = s.prefer.max_mbps;
+    $s("stPrefPar").value = s.prefer.parallel;
+    $s("stPrefLt").value = s.prefer.latency_timeout_ms;
+    $s("stPrefTop").value = s.prefer.top_n;
+    $s("stPrefSpl").value = s.prefer.samples_per_cidr;
+    $s("stAuto").checked = s.autostart;
+    $s("stCertInfo").textContent = s.cert_exists ? "证书已存在" : "证书缺失";
+  } catch (e) { toast("加载设置失败: " + e.message); }
+}
+
+document.getElementById("settings").onclick = () => { setBackdrop.classList.add("show"); loadSettings(); };
+$s("stClose").onclick = () => setBackdrop.classList.remove("show");
+setBackdrop.addEventListener("click", e => { if (e.target === setBackdrop) setBackdrop.classList.remove("show"); });
+
+$s("stSave").onclick = async () => {
+  const btn = $s("stSave");
+  btn.disabled = true;
+  try {
+    await api("PUT", "/api/settings", {
+      bind_ip: $s("stBind").value.trim() || undefined,
+      log_max_bytes: parseInt($s("stLog").value, 10) || undefined,
+      backup_keep: parseInt($s("stKeep").value, 10) || undefined,
+      ca_years: parseInt($s("stCA").value, 10) || undefined,
+      leaf_days: parseInt($s("stLeaf").value, 10) || undefined,
+      prefer: {
+        enabled: $s("stPrefEn").checked,
+        speed_test: $s("stPrefSpeed").checked,
+        max_mbps: parseFloat($s("stPrefMb").value) || 0,
+        parallel: parseInt($s("stPrefPar").value, 10) || 32,
+        latency_timeout_ms: parseInt($s("stPrefLt").value, 10) || 1200,
+        top_n: parseInt($s("stPrefTop").value, 10) || 2,
+        samples_per_cidr: parseInt($s("stPrefSpl").value, 10) || 16,
+      },
+    });
+    toast("设置已保存到 config/env.json");
+    loadSettings();
+  } catch (e) { toast("保存失败: " + e.message); } finally { btn.disabled = false; }
+};
+
+$s("stAuto").onchange = async () => {
+  try {
+    await api("POST", "/api/settings/autostart", { enabled: $s("stAuto").checked });
+    toast($s("stAuto").checked ? "已设置开机自启" : "已取消开机自启");
+  } catch (e) { toast("切换自启失败: " + e.message); loadSettings(); }
+};
+
+async function certReset(which, label) {
+  if (!confirm(`确定${label}？将重新签发证书并重启代理服务。`)) return;
+  try {
+    const res = await api("POST", `/api/settings/certs/${which}`, {});
+    toast(res.ok ? `${label}完成，服务已重载` : `${label}失败：${res.error || "见输出"}`);
+    if (res.output) console.log(res.output);
+  } catch (e) { toast(`${label}失败: ` + e.message); }
+}
+
+$s("stResetRoot").onclick = () => certReset("root", "重置根证书");
+$s("stResetLeaf").onclick = () => certReset("leaf", "重置网站证书");
+
+$s("stResetFactory").onclick = async () => {
+  if (!confirm("恢复出厂：停止服务、取消开机自启、撤销 hosts 劫持、删除证书与生成物。规则文件与 env.json 保留。确认？"))
+    return;
+  if (!confirm("再次确认：将无法在面板继续操作（服务会停止），需 SSH 到本机 systemctl enable --now 恢复。"))
+    return;
+  try {
+    const res = await api("POST", "/api/settings/reset", { confirm: true });
+    toast(res.ok ? "已完成恢复出厂" : "恢复出厂失败：" + (res.error || ""));
+    if (res.ok) { $s("stAuto").checked = false; $s("stCertInfo").textContent = "证书缺失"; }
+  } catch (e) { toast("恢复出厂失败: " + e.message); }
+};
 
 load();
 </script>
