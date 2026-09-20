@@ -15,6 +15,7 @@ import (
 
 	_ "embed"
 
+	"steam302-web/internal/prefer"
 	"steam302-web/internal/rules"
 )
 
@@ -111,7 +112,11 @@ func (s *Server) regenerate() (regenResult, error) {
 	if err != nil {
 		return regenResult{}, err
 	}
-	cf := rules.GenerateCaddyfile(env, rs)
+	pref, err := prefer.Load(filepath.Join(s.Root, prefer.Path))
+	if err != nil {
+		return regenResult{}, err
+	}
+	cf := rules.GenerateCaddyfile(env, rs, pref)
 	cfPath := filepath.Join(s.Root, "Caddyfile")
 	if err := os.WriteFile(cfPath, []byte(cf), 0o644); err != nil {
 		return regenResult{}, err

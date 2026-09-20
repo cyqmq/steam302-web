@@ -12,6 +12,7 @@ S302.hosts
 config/overrides.json
 config/s302fwd.pid
 config/s302fwd.log
+config/prefer.json
 *.log
 
 # 系统

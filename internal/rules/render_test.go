@@ -4,7 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+
+	"steam302-web/internal/prefer"
 )
 
 func projectRoot(t *testing.T) string {
@@ -48,7 +51,7 @@ func TestGenerate(t *testing.T) {
 			if len(rules) == 0 {
 				t.Fatal("no rules loaded")
 			}
-			got := GenerateCaddyfile(env, rules)
+			got := GenerateCaddyfile(env, rules, nil)
 			if want := mustGolden(t, tc.goldenCaddy); got != want {
 				t.Errorf("Caddyfile mismatch with golden %s", tc.goldenCaddy)
 			}
@@ -57,5 +60,35 @@ func TestGenerate(t *testing.T) {
 				t.Errorf("hosts mismatch with golden %s", tc.goldenHosts)
 			}
 		})
+	}
+}
+
+// TestGenerateWithPrefer 验证有 CDN 优选缓存时：优选 IP 前置进上游、原上游保留。
+func TestGenerateWithPrefer(t *testing.T) {
+	root := projectRoot(t)
+	env, err := LoadEnv(filepath.Join(root, "config", "env.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules, err := LoadRules(filepath.Join(root, "config", "rules"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pref := &prefer.Cache{
+		SchemaVersion: 1,
+		Entries: []prefer.Entry{{
+			RuleID: "steam_cdn_akamai", SiteIndex: 0, Mode: "node",
+			Ranked: []prefer.Ranked{
+				{Upstream: "https://1.2.3.4", IP: "1.2.3.4", DelayMS: 5},
+				{Upstream: "https://5.6.7.8", IP: "5.6.7.8", DelayMS: 8},
+			},
+		}},
+	}
+	cf := GenerateCaddyfile(env, rules, pref)
+	if !strings.Contains(cf, "https://1.2.3.4") || !strings.Contains(cf, "https://5.6.7.8") {
+		t.Fatal("prefer IPs missing in Caddyfile")
+	}
+	if !strings.Contains(cf, "steamuserimages-a.akamaihd.net.edgesuite.net") {
+		t.Fatal("original upstreams lost")
 	}
 }

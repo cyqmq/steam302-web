@@ -49,12 +49,13 @@
 | 启用 DNS 重定向模式 | 本仓库通过 **hosts 劫持**（本质即 DNS 重定向的一种落地）导通流量；**不**劫持 53/UDP，不提供 DNS over TCP 服务 |
 | 日志自动清除 | Caddy 日志进 journald（systemd 自动轮转）；但 `config/s302fwd.log` 为追加无上限，需用户自行 `logrotate` |
 | 输出 DNS 重定向日志 | 未输出按域名请求日志；基础运行日志走 journald / s302fwd.log |
+| CDN 优选 | 已实现 `bin/prefer`（node=接入节点 / cf=Cloudflare 段抽样实测），systemd 启动前 `--quick` 补齐缓存并渲染为 Caddyfile 前置 IP；`speed_test` 时按下载速率排序，否则按延迟 |
 
 ### 未实现 / 本机不适用 ❌ / ⏹
 
 | 原版设置项 | 说明 |
 | --- | --- |
-| CDN 优选（Akamai/CF/Fastly 启动测速选最快） | ❌ 无实时测速；目前为静态节点集合 + `random_choose` 负载均衡 |
+| CDN 优选（Akamai/CF/Fastly 启动测速选最快） | ✅ `bin/prefer`；见上表"CDN 优选"行 |
 | 测速速率限制 | ❌（无测速，故无带宽限制） |
 | DNS 重定向 CDN 优选 | ❌ 依赖上面的 CDN 优选，未实现 |
 | 用户自定义规则编辑器（铅笔图标）/ 域名黑名单 | ❌ 规则以 JSON 编辑；无 GUI 编辑器、暂无黑名单功能 |

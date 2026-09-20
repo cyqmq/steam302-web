@@ -8,15 +8,32 @@ type Env struct {
 	Cert             Cert                       `json:"cert"`
 	Hosts            Hosts                      `json:"hosts"`
 	Fwd              Fwd                        `json:"fwd"`
+	Prefer           PreferConfig               `json:"prefer"`
 	UpstreamDefaults map[string]json.RawMessage `json:"upstream_defaults"`
 	Notes            string                     `json:"notes"`
 }
 
+// PreferConfig 是 CDN 优选(测速)的全局默认值，规则内的 site.prefer 可覆盖。
+type PreferConfig struct {
+	Enabled          bool    `json:"enabled"`
+	LatencyTimeoutMS int     `json:"latency_timeout_ms"`
+	LatencyTries     int     `json:"latency_tries"`
+	Parallel         int     `json:"parallel"`
+	SpeedTest        bool    `json:"speed_test"`
+	DownloadURL      string  `json:"download_url"`
+	DownloadSize     int64   `json:"download_size"`
+	DownloadTimeoutS int     `json:"download_timeout_s"`
+	MaxMbps          float64 `json:"max_mbps"`
+	TopN             int     `json:"top_n"`
+	SamplesPerCIDR   int     `json:"samples_per_cidr"`
+	Port             int     `json:"port"`
+}
+
 type Fwd struct {
-	Bind     string    `json:"bind"`
-	PidFile  string    `json:"pid_file"`
-	LogFile  string    `json:"log_file"`
-	Mappings []FwdMap  `json:"mappings"`
+	Bind     string   `json:"bind"`
+	PidFile  string   `json:"pid_file"`
+	LogFile  string   `json:"log_file"`
+	Mappings []FwdMap `json:"mappings"`
 }
 
 type FwdMap struct {
@@ -61,7 +78,23 @@ type Site struct {
 	TLSKey       string    `json:"tls_key"`
 	PNACors      bool      `json:"pna_cors"`
 	ExtraHeaders []Header  `json:"extra_headers"`
+	Prefer       *Prefer   `json:"prefer"`
 	Handlers     []Handler `json:"handlers"`
+}
+
+// Prefer 为单个 site 开启 CDN 优选。mode：
+//   - "node": 候选为接入节点/上游主机，解析成 IP 后测速，Top-N 前置为 pins（tls_server_name 沿用 handler 的 SNI 伪装）
+//   - "cf":   候选为 Cloudflare Anycast 官方 IP 段（cidrs），随机采样后测速，Top-N 前置为 pins（SNI={host}）
+type Prefer struct {
+	Mode           string   `json:"mode"`
+	Port           int      `json:"port"`
+	Candidates     []string `json:"candidates"`
+	CIDRs          []string `json:"cidrs"`
+	SamplesPerCIDR int      `json:"samples_per_cidr"`
+	SpeedTest      *bool    `json:"speed_test"`
+	DownloadURL    string   `json:"download_url"`
+	MaxMbps        float64  `json:"max_mbps"`
+	TopN           int      `json:"top_n"`
 }
 
 type Header struct {

@@ -8,6 +8,15 @@
   "sites": [
     {
       "hosts": ["store.steampowered.com"],
+      "prefer": {
+        "mode": "node",
+        "candidates": [
+          "https://str001.steam302.xyz",
+          "https://str002.steam302.xyz",
+          "https://str003.steam302.xyz",
+          "https://str004.steam302.xyz"
+        ]
+      },
       "handlers": [
         {
           "type": "reverse_proxy",

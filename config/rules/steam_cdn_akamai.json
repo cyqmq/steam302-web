@@ -33,6 +33,9 @@
         "cdn.akamai.steamusercontent.com"
       ],
       "pna_cors": true,
+      "prefer": {
+        "mode": "node"
+      },
       "handlers": [
         {
           "type": "reverse_proxy",

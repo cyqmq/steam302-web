@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"steam302-web/internal/prefer"
 	"steam302-web/internal/rules"
 )
 
@@ -58,7 +59,16 @@ func main() {
 		}
 	}
 
-	cf := rules.GenerateCaddyfile(env, rs)
+	pref, err := prefer.Load(filepath.Join(rootDir, prefer.Path))
+	if err != nil {
+		fatal("加载 CDN 优选缓存: %v", err)
+	}
+	applied := 0
+	if pref != nil {
+		applied = len(pref.Entries)
+	}
+
+	cf := rules.GenerateCaddyfile(env, rs, pref)
 	if *printOut {
 		fmt.Print(cf)
 		return
@@ -71,7 +81,7 @@ func main() {
 	if err := os.WriteFile(outPath, []byte(cf), 0o644); err != nil {
 		fatal("写入 %s: %v", outPath, err)
 	}
-	fmt.Printf("Caddyfile 已生成: %s  (启用 %d 条规则)\n", outPath, len(rs))
+	fmt.Printf("Caddyfile 已生成: %s  (启用 %d 条规则, CDN优选 %d 项)\n", outPath, len(rs), applied)
 
 	if *hostsOut != "" {
 		h := rules.GenerateHosts(env, rs)

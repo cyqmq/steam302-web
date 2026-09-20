@@ -58,6 +58,9 @@
 - PKI：`cmd/genpki` 自产 CA + 叶证书（SAN 覆盖全部规则域名）到 `config/certs/`，MITM 用。
 - hosts 管理：`cmd/genhosts`（apply/remove/revert/status，行尾标记 `#S302X`，备份
   `/etc/hosts.S302XBackup`）。
+- CDN 优选：`bin/prefer`（`internal/prefer`）测速选最快，写成 IP 前置到 Caddyfile 上游，
+  缓存 `config/prefer.json`（gitignore）；caddy 单元 `ExecStartPre` 挂
+  `prefer run --quick --timeout 12`（只补缺失、不覆盖已有）。详见 `docs/RULES.md` §CDN 优选。
 - WebUI：`bin/webui`（127.0.0.1:34902，无鉴权，勿绑外网）。
 
 ### 3.1 与原版的能力等价性（已实测）

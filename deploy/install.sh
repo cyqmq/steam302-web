@@ -20,7 +20,7 @@ echo "caddy:      $CADDY_BIN"
 
 # 确保二进制齐全（缺则构建）
 export PATH="$PATH:/usr/local/go/bin"
-for b in genconfig genhosts genpki s302fwd webui; do
+for b in genconfig genhosts genpki s302fwd webui prefer; do
   if [[ ! -x "$ROOT/bin/$b" ]]; then
     echo "缺少 bin/$b，正在构建..."
     (cd "$ROOT" && go build -o "bin/$b" "./cmd/$b")
@@ -42,6 +42,7 @@ Conflicts=steam302.service
 Type=simple
 User=root
 WorkingDirectory=$ROOT
+ExecStartPre=$ROOT/bin/prefer run --quick --timeout 12
 ExecStartPre=$ROOT/bin/genconfig --hosts $ROOT/S302.hosts
 ExecStart=$CADDY_BIN run --config $ROOT/Caddyfile --adapter caddyfile
 Restart=on-failure

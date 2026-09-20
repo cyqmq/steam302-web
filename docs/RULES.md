@@ -136,3 +136,43 @@ bin/webui --addr 0.0.0.0:34902            # 注意：无鉴权，默认只绑本
 三个单元：`steam302-web-caddy` / `steam302-web-fwd` / `steam302-web-webui`
 （`deploy/install.sh` 生成到 `/etc/systemd/system/`，与机上原版 `steam302.service`
 互相 `Conflicts`）。切新版、切回原版、校验清单详见 `docs/PORTING.md` §4/§8。
+
+## CDN 优选（`prefer`）
+
+对启用优选的 site 做测速，选最快 Top-N 写成 IP 前置到 Caddyfile 上游
+（IP 直连 + SNI 伪装 Host），原上游保留作 fallback。方法论参考
+XIU2/CloudflareSpeedTest：TCP 握手测延迟 → HTTP 下载测速 → 排序。
+
+site 级配置（`config/rules/*.json` 的 `sites[].prefer`）：
+
+```json
+"prefer": {
+  "mode": "node",                     // node=接入节点/上游主机优选；cf=Cloudflare Anycast IP 优选
+  "candidates": ["https://str001.steam302.xyz", "..."],  // node 模式候选（缺省取第一个 reverse_proxy 上游）
+  "cidrs": ["104.16.0.0/12", "..."],  // cf 模式：CF 官方段，随机采样
+  "samples_per_cidr": 24,             // 每段采样数（cf）
+  "top_n": 2,
+  "speed_test": true,                 // 是否下载测速
+  "download_url": "https://speed.cloudflare.com/__down?bytes=8388608",
+  "max_mbps": 20                      // 测速带宽上限
+}
+```
+
+- 全局默认在 `env.json -> prefer`（`enabled/latency_timeout_ms/parallel/max_mbps/...`）。
+- `cf` 模式会以 site 首个域名为 SNI 做一次“真能服务该域名”的校验（能返回任何 HTTP 状态
+  才算可用），避免选到连不上该站点的边缘导致 502；并能服务该域名的边缘可能只有极少数，
+  采样抽空会翻倍重试（24→48）。`cf` 上游还会自动 `tls_insecure_skip_verify`
+  （steamstatic 的 Cloudflare 边缘证书 2025-10-01 过期，且客户端侧仍由本地 CA 全链路 MITM）。
+- `node` 模式默认不做下载测速（接入节点不支持任意 SNI），按延迟排序。
+- 缓存写在 `config/prefer.json`（已 gitignore）。
+
+命令：
+
+```bash
+bin/prefer run --timeout 90 --debug     # 全量：抽样→延迟→域名校验→下载测速→写缓存
+bin/prefer run --quick                  # 只补缺失项、不覆盖已有（开机用，避免冲掉全量结果）
+bin/prefer show | bin/prefer clear      # 查看 / 清除缓存
+```
+
+systemd 的 caddy 单元 `ExecStartPre` 已挂 `prefer run --quick --timeout 12`，
+保证每次启动先用上一轮优选结果渲染（缺失项补齐），再生成 Caddyfile。

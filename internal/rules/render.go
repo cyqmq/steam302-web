@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"steam302-web/internal/prefer"
 )
 
 func caddyQuote(s string) string {
@@ -267,7 +269,12 @@ func renderExtraHeaders(prefix string, headers []Header) string {
 	return strings.Join(lines, "\n")
 }
 
-func renderSite(site Site, env *Env) string {
+func renderSite(site Site, env *Env, pref *prefer.Cache, ruleID string, siteIdx int) string {
+	if pref != nil {
+		if e := pref.Entry(ruleID, siteIdx); e != nil && len(e.Ranked) > 0 {
+			site = applyPreferred(site, e)
+		}
+	}
 	port := env.Listen.HTTPSPort
 	hosts := make([]string, 0, len(site.Hosts))
 	for _, h := range site.Hosts {
@@ -300,6 +307,44 @@ func renderSite(site Site, env *Env) string {
 	return strings.Join(out, "\n")
 }
 
+// applyPreferred 把优选结果对应的 IP 前置到该 site 的 reverse_proxy 上游，
+// 原上游保留作 fallback。cf 模式下若 handler 未配置 TLS/SNI，补上 {host} 伪装。
+func applyPreferred(site Site, e *prefer.Entry) Site {
+	ups := make([]string, 0, len(e.Ranked))
+	for _, r := range e.Ranked {
+		ups = append(ups, r.Upstream)
+	}
+	handlers := make([]Handler, len(site.Handlers))
+	for i, h := range site.Handlers {
+		h2 := h
+		if h2.Type == "reverse_proxy" && (len(h2.Upstreams) > 0 || len(h2.DynamicUpstreams) > 0) {
+			combined := make([]string, 0, len(ups)+len(h2.Upstreams))
+			combined = append(combined, ups...)
+			combined = append(combined, h2.Upstreams...)
+			h2.Upstreams = combined
+			if e.Mode == "cf" && (h2.Transport == nil || !h2.Transport.TLS) {
+				h2.Transport = &Transport{TLS: true, TLSServerName: "{host}"}
+			}
+			// CF 上游边缘证书已过期（steamstatic 2025-10-01），跳过上游 TLS 校验保可用
+			if e.Mode == "cf" {
+				if h2.Transport == nil {
+					h2.Transport = &Transport{}
+				}
+				t2 := *h2.Transport
+				t2.TLS = true
+				if t2.TLSServerName == "" {
+					t2.TLSServerName = "{host}"
+				}
+				t2.InsecureSkipVerify = true
+				h2.Transport = &t2
+			}
+		}
+		handlers[i] = h2
+	}
+	site.Handlers = handlers
+	return site
+}
+
 func renderGlobal(env *Env) string {
 	aut := env.Listen.AutoHTTPS
 	if aut == "" {
@@ -328,11 +373,11 @@ func renderHTTPRedirect(env *Env) string {
 	return b.String()
 }
 
-func GenerateCaddyfile(env *Env, rules []Rule) string {
+func GenerateCaddyfile(env *Env, rules []Rule, pref *prefer.Cache) string {
 	parts := []string{renderGlobal(env), ""}
 	for _, rule := range rules {
-		for _, site := range rule.Sites {
-			parts = append(parts, renderSite(site, env), "")
+		for i, site := range rule.Sites {
+			parts = append(parts, renderSite(site, env, pref, rule.ID, i), "")
 		}
 	}
 	if http := renderHTTPRedirect(env); http != "" {
