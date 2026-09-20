@@ -103,6 +103,28 @@ func (s *Server) profile() (proxyProfile, error) {
 		hostsTxt += fmt.Sprintf("%s\t%s\n", bind, h)
 	}
 
+	// 白名单式 PAC：仅把被本机劫持/代理的目标域名转发到 caddy（HTTPS 代理），
+	// 其余一概 DIRECT。黑名单域名不在 hosts 里，天然被排除，不会 302→502。
+	pac := "function FindProxyForURL(url, host) { return \"DIRECT\"; }\n"
+	if len(hosts) > 0 {
+		conds := make([]string, 0, len(hosts))
+		for _, h := range hosts {
+			if strings.HasPrefix(h, "*.") {
+				conds = append(conds, fmt.Sprintf("host.endsWith(%q)", strings.TrimPrefix(h, "*")))
+			} else {
+				conds = append(conds, fmt.Sprintf("host === %q || host.endsWith(%q)", h, "."+h))
+			}
+		}
+		pac = fmt.Sprintf(
+			"function FindProxyForURL(url, host) {\n"+
+				"  /* 白名单式：仅目标会场域名走 HTTPS 代理，其余直连。信任 CA: %s */\n"+
+				"  if (%s) return \"HTTPS %s:%d\";\n"+
+				"  return \"DIRECT\";\n"+
+				"}",
+			caPath, strings.Join(conds, " ||\n      "),
+			bind, env.Listen.HTTPSPort)
+	}
+
 	curlCmd := ""
 	curlEnv := ""
 	concrete := ""
@@ -118,8 +140,6 @@ func (s *Server) profile() (proxyProfile, error) {
 		curlEnv = fmt.Sprintf("export HTTPS_PROXY=http://%s:%d\nexport HTTP_PROXY=http://%s:%d\nexport CURL_CA_BUNDLE=%s\n",
 			bind, env.Listen.HTTPPort, bind, env.Listen.HTTPPort, caPath)
 	}
-	pac := fmt.Sprintf("function FindProxyForURL(url, host) { /* 需先信任 %s 的 CA */\n  return \"HTTPS %s:%d\";\n}\n",
-		caPath, bind, env.Listen.HTTPSPort)
 
 	return proxyProfile{
 		BindIP:   bind,
@@ -338,6 +358,29 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		writeJSON(w, 200, map[string]any{"ok": true, "regen": res})
+	})
+
+	// 一键应用：sudo -n 调 bin/apply（重生成 → 写 /etc/hosts → 重启 caddy/fwd）。
+	// 无免密 sudo 时返回 applied=false，前端提示用命令行手动执行。
+	mux.HandleFunc("POST /api/apply", func(w http.ResponseWriter, r *http.Request) {
+		applyBin := filepath.Join(s.Root, "bin", "apply")
+		ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "sudo", "-n", applyBin, "--root", s.Root)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			code := "sudo -n 不可用或无权限"
+			if len(out) > 0 {
+				code = strings.TrimSpace(string(out))
+			}
+			writeJSON(w, 200, map[string]any{
+				"applied": false,
+				"error":   code,
+				"hint":    "请在本机以 root 执行: sudo bin/apply --root " + s.Root,
+			})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"applied": true, "out": string(out)})
 	})
 
 	mux.HandleFunc("GET /api/profile", func(w http.ResponseWriter, r *http.Request) {

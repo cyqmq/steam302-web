@@ -38,7 +38,7 @@
 | 重置所有设置（删配置+移自启） | `deploy/uninstall.sh` |
 | 证书有效期（如 10 年） | `bin/genpki --ca-years 10 --leaf-days 365` |
 | 上游域名（Steam 相关，可自建节点） | 规则文件 `upstreams[]` 覆盖 `env.json → upstream_defaults` 默认值 |
-| 用户自定义规则（列表查看） | WebUI `http://127.0.0.1:34902` 列出全部规则 + 启用状态 + 覆盖域名数 + 缺失文件 |
+| 用户自定义规则（列表查看） | WebUI `http://127.0.0.1:34902` 列出全部规则 + 启用状态 + 覆盖域名数 + 缺失文件；顶部「一键应用」经 `sudo -n bin/apply` 重生成 → 写 `/etc/hosts` → 重启服务 |
 | 查看使用教程 | 仓库内文档：`README` / `docs/RULES.md` / `docs/PORTING.md` |
 
 ### 部分实现 ⚠️
@@ -59,7 +59,7 @@
 | 测速速率限制 | ❌（无测速，故无带宽限制） |
 | DNS 重定向 CDN 优选 | ❌ 依赖上面的 CDN 优选，未实现 |
 | 用户自定义规则编辑器（铅笔图标）/ 域名黑名单 | ✅ WebUI 每条规则「✎ 编辑」直接改 JSON（校验后重生成）；顶部「域名黑名单」面板（`config/blacklist.json`，支持 `*.example.com`，命中域名不进 hosts 劫持走直连） |
-| 复制代理设置参数（剪贴板/PAC/环境变量） | ✅ WebUI「复制代理参数」面板：Hosts 劫持片段 / curl 验证命令 / PAC / 环境变量四种格式一键复制 |
+| 复制代理设置参数（剪贴板/PAC/环境变量） | ✅ WebUI「复制代理参数」面板：Hosts 劫持片段 / curl 验证命令 / PAC / 环境变量四种格式一键复制；PAC 为**白名单式**（仅被劫持域名走 HTTPS 代理、其余 DIRECT），黑名单域名天然被排除 |
 | 界面主题（亮/暗） | ✅ WebUI 顶部切换（CSS 变量 + localStorage 记忆，默认暗色） |
 | 自动修改代理（Windows） | ⏹ 不适用：本仓库是 Linux 服务器端；Windows 客户端需自行配置系统代理/PAC |
 | 监听端口 & 代理模式（自动配代理联动） | ⏹ 服务端无"自动配置客户端代理"能力 |
@@ -86,7 +86,7 @@ config/
   rules/*.json       # 规则目录：每个文件=一条服务规则（steam/github/discord/youtube…）
   overrides.json     # WebUI 开关覆盖（运行时生成，gitignore）
   rules.schema.json  # 规则 JSON Schema
-cmd/                 # genconfig / genhosts / genpki / s302fwd / webui
+cmd/                 # genconfig / genhosts / genpki / s302fwd / webui / apply
 internal/            # rules / hosts / pki / fwd / webui
 deploy/              # install.sh · uninstall.sh · switch-back.sh · apply-hosts.sh
 web/files/           # file_server 型服务资源（youtube_iframe 占位，P0）
@@ -104,6 +104,7 @@ go build -o bin/genhosts  ./cmd/genhosts
 go build -o bin/genpki    ./cmd/genpki
 go build -o bin/s302fwd   ./cmd/s302fwd
 go build -o bin/webui     ./cmd/webui
+go build -o bin/apply     ./cmd/apply
 
 # 1) 生成证书（自签 CA + 叶证书，SAN 覆盖规则域名）
 bin/genpki

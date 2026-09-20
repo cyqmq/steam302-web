@@ -80,6 +80,7 @@
     <button class="ghost" id="profile">复制代理参数</button>
     <button class="ghost" id="theme">☾ 暗色</button>
     <button class="ghost" id="regen">重新生成配置</button>
+    <button class="ghost" id="apply">一键应用</button>
   </span>
 </header>
 <main id="app"></main>
@@ -279,6 +280,20 @@ document.getElementById("regen").onclick = async () => {
   }
 };
 
+document.getElementById("apply").onclick = async () => {
+  try {
+    const data = await api("POST", "/api/apply");
+    if (data.applied) {
+      toast("已应用："+ (data.out || "").trim().split("\n").pop());
+    } else {
+      const hint = location.origin.match(/127\.|localhost/) ? "" : "（本机提示：webui 需配 sudo -n 免密才可远程触发）";
+      toast(`应用未执行：${data.error || "无 root 权限"}` + hint);
+    }
+  } catch (e) {
+    toast("失败: " + e.message);
+  }
+};
+
 const edBackdrop = document.getElementById("edBackdrop");
 const edTxt = document.getElementById("edTxt");
 let edMode = null, edId = null;
@@ -291,7 +306,7 @@ function openModalMode(mode) {
     document.getElementById("edHint").textContent = "JSON 保存后自动校验并重生成；id 需与文件名一致，留空则取文件名。";
   } else {
     document.getElementById("edTitle").textContent = "域名黑名单";
-    document.getElementById("edHint").textContent = "每行一个域名（支持 *.example.com），这些域名将不进入 hosts 劫持、走直连；留空 = 清空。保存后写入 S302.hosts；同步到 /etc/hosts 需 genhosts apply 或 systemctl restart steam302-web-caddy。";
+    document.getElementById("edHint").textContent = "每行一个域名（支持 *.example.com），这些域名将不进入 hosts 劫持、走直连；留空 = 清空。保存后写入 S302.hosts；点顶部「一键应用」即可同步到 /etc/hosts 并重启服务。";
   }
 }
 

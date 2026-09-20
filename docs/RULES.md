@@ -124,9 +124,9 @@ bin/webui --addr 0.0.0.0:34902            # 注意：无鉴权，默认只绑本
 `config/blacklist.json`（WebUI 顶部「域名黑名单」面板编辑），结构 `{"domains": [...]}`：
 每项支持精确域名或 `*.example.com` 通配（匹配所有子域名）。命中域名在生成
 **Caddyfile 与 hosts 片段**时都会被剔除（整个 site 被清空则不渲染），使这些域名走
-真实 DNS 直连，不经过本代理。文件已在 `.gitignore`。同步到 `/etc/hosts` 仍需
-`bin/genhosts apply S302.hosts`（或 `systemctl restart steam302-web-caddy` 会在
-`ExecStartPre` 重新生成片段后由系统重新合入）。
+真实 DNS 直连，不经过本代理。文件已在 `.gitignore`。同步到 `/etc/hosts` 可直接点
+WebUI 顶部「一键应用」（内部 `sudo -n bin/apply`：重生成 → 写 `/etc/hosts` → 重启
+caddy/fwd），或手动 `bin/genhosts apply S302.hosts`。
 
 ## 规则在线编辑（WebUI）
 

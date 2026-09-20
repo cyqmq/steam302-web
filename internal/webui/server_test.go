@@ -163,4 +163,34 @@ func TestProfileEndpoint(t *testing.T) {
 	if p.BindIP != "127.0.0.1" || !strings.Contains(p.HostsTxt, "a.example.com") {
 		t.Fatalf("profile wrong: %+v", p)
 	}
+	if p.HostsTxt == "" {
+		t.Fatal("hosts_txt empty")
+	}
+	for _, assert := range []struct {
+		wantOK   bool
+		contains string
+	}{
+		{true, `host === "a.example.com" || host.endsWith(".a.example.com")`},
+		{true, `return "DIRECT";`},
+		{false, `return "HTTPS` + `"`, // 白名单式 PAC 不应再无条件全代理
+		},
+	} {
+		got := strings.Contains(p.PAC, assert.contains)
+		if got != assert.wantOK {
+			t.Fatalf("PAC assert(contains=%q want=%v) mismatch", assert.contains, assert.wantOK)
+		}
+	}
+	// 黑名单后 PAC 不再包含该域名条件
+	if rr := do(t, h, "PUT", "/api/blacklist", map[string][]string{"domains": {"b.example.com"}}); rr.Code != 200 {
+		t.Fatalf("blacklist put code=%d", rr.Code)
+	}
+	if rr := do(t, h, "GET", "/api/profile", nil); rr.Code == 200 {
+		var p2 proxyProfile
+		_ = json.Unmarshal(rr.Body.Bytes(), &p2)
+		if strings.Contains(p2.PAC, `"b.example.com"`) {
+			t.Fatal("blacklisted host still whitelisted in PAC")
+		}
+	} else {
+		t.Fatalf("profile after blacklist code=%d", rr.Code)
+	}
 }
