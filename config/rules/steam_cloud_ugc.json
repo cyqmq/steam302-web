@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "steam_cloud_ugc",
+  "name": "Steam 云存储/创意工坊附件",
+  "group": "steam",
+  "description": "steamcloud-*.googleapis.com 域名直连 Google Cloud Storage，TLS SNI 伪装为 'uploads'。",
+  "enabled": true,
+  "sites": [
+    {
+      "hosts": [
+        "steamcloud-ugc.storage.googleapis.com",
+        "steamcloud-eu-ams.storage.googleapis.com",
+        "steamcloud-eu-fra.storage.googleapis.com",
+        "steamcloud-finland.storage.googleapis.com",
+        "steamcloud-saopaulo.storage.googleapis.com",
+        "steamcloud-singapore.storage.googleapis.com",
+        "steamcloud-sydney.storage.googleapis.com",
+        "steamcloud-taiwan.storage.googleapis.com",
+        "steamcloud-eu.storage.googleapis.com"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://storage.googleapis.com", "https://chromedriver.storage.googleapis.com"],
+          "lb": { "policy": "random", "try_duration": "5s" },
+          "transport": { "tls": true, "tls_server_name": "uploads", "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

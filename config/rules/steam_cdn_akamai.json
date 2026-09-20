@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "steam_cdn_akamai",
+  "name": "Steam 页面布局/图片修复 (Akamai)",
+  "group": "steam",
+  "description": "Steam 网页静态资源/大图走 Akamai 边缘加速，TLS SNI 伪装为 img-s-msn。",
+  "enabled": true,
+  "sites": [
+    {
+      "hosts": [
+        "steambroadcast.akamaized.net",
+        "steambroadcastchat.akamaized.net",
+        "steamvideo-a.akamaihd.net",
+        "steamstore-a.akamaihd.net",
+        "steamusercontent-a.akamaihd.net",
+        "steamcommunity-a.akamaihd.net",
+        "steamcdn-a.akamaihd.net",
+        "steamuserimages-a.akamaihd.net",
+        "community.akamai.steamstatic.com",
+        "avatars.akamai.steamstatic.com",
+        "community.steamstatic.com",
+        "cdn.akamai.steamstatic.com",
+        "avatars.steamstatic.com",
+        "shared.akamai.steamstatic.com",
+        "clan.akamai.steamstatic.com",
+        "video.akamai.steamstatic.com",
+        "client-update.akamai.steamstatic.com",
+        "clientconfig.akamai.steamstatic.com",
+        "clan.steamstatic.com",
+        "shared.steamstatic.com",
+        "images.akamai.steamusercontent.com",
+        "images.steamusercontent.com",
+        "cdn.akamai.steamusercontent.com"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://steamuserimages-a.akamaihd.net.edgesuite.net",
+            "https://steamstore-a.akamaihd.net.edgesuite.net",
+            "https://eaassets-a.akamaihd.net.edgesuite.net",
+            "https://steamcommunity-a.akamaihd.net.edgesuite.net"
+          ],
+          "dynamic_upstreams": [
+            { "dns": "a", "host": "steamuserimages-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamstore-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "eaassets-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamcommunity-a.akamaihd.net.edgesuite.net", "port": 443 }
+          ],
+          "lb": { "policy": "random_choose", "choose": 4, "try_duration": "5s" },
+          "transport": { "tls": true, "tls_server_name": "img-s-msn-com.akamaized.net", "insecure_skip_verify": false },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

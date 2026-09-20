@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "modio",
+  "name": "mod.io 下载/封面",
+  "group": "game",
+  "description": "mod.io 与 modcdn.io：将任意路径重写为 /302{host}{uri} 后转发到 m0di0.steam302.xyz 节点。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["mod.io", "*.mod.io", "*.old.mod.io"],
+      "handlers": [
+        {
+          "type": "rewrite",
+          "match": { "path": ["*"] },
+          "rewrite": { "to": "/302{host}{uri}" }
+        },
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://m0di0.steam302.xyz"],
+          "transport": { "tls": true, "insecure_skip_verify": false },
+          "header_up": [["Host", "m0di0.steam302.xyz"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["binary.lge.modcdn.io"],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://binary.modcdn.io"],
+          "transport": { "tls": true, "insecure_skip_verify": false },
+          "header_up": [["Host", "binary.modcdn.io"]]
+        }
+      ]
+    }
+  ]
+}

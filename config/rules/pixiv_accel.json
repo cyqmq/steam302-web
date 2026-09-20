@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "id": "pixiv_accel",
+  "name": "Pixiv 直连",
+  "group": "image",
+  "description": "pixiv 全系：主站/API 直连日本源站 IP 池，图片走 i.pximg 专用池，TLS 不校验以避免证书链问题。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": [
+        "pixiv.net",
+        "www.pixiv.net",
+        "m.pixiv.net",
+        "touch.pixiv.net",
+        "accounts.pixiv.net",
+        "app-api.pixiv.net",
+        "oauth.secure.pixiv.net",
+        "public-api.secure.pixiv.net",
+        "recommend-api.pixiv.net",
+        "embed.pixiv.net",
+        "dic.pixiv.net",
+        "en.dic.pixiv.net",
+        "help.pixiv.net",
+        "fanbox.cc",
+        "www.fanbox.cc",
+        "api.fanbox.cc",
+        "fanbox.pixiv.net"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://210.140.92.186",
+            "https://210.140.92.187",
+            "https://210.140.92.183",
+            "https://210.140.92.181",
+            "https://210.140.92.179",
+            "https://210.140.92.182"
+          ],
+          "lb": { "policy": "random", "try_duration": "5s" },
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["i.pximg.net", "s.pximg.net"],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://210.140.139.131",
+            "https://210.140.139.133",
+            "https://210.140.139.132",
+            "https://210.140.92.142",
+            "https://210.140.139.136",
+            "https://210.140.92.141",
+            "https://210.140.139.135",
+            "https://210.140.139.134",
+            "https://210.140.92.143",
+            "https://210.140.92.144",
+            "https://210.140.92.149",
+            "https://210.140.92.145",
+            "https://210.140.92.148",
+            "https://210.140.92.147",
+            "https://210.140.92.146"
+          ],
+          "lb": { "policy": "random", "try_duration": "5s" },
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "comic.pixiv.net",
+        "novel.pixiv.net",
+        "img-comic.pixiv.net",
+        "img-novel.pixiv.net",
+        "imgsi1.pixiv.net",
+        "img-sketch.pixiv.net",
+        "i1.pixiv.net",
+        "i2.pixiv.net",
+        "i3.pixiv.net",
+        "i4.pixiv.net",
+        "meetup.pixiv.net",
+        "origin-i1.pixiv.net",
+        "origin-i3.pixiv.net",
+        "origin-i4.pixiv.net",
+        "origin-source.pixiv.net",
+        "cdn-origin-comic.pixiv.net"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://210.140.131.153",
+            "https://210.140.131.147",
+            "https://210.140.131.144",
+            "https://210.140.131.145"
+          ],
+          "lb": { "policy": "random", "try_duration": "5s" },
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["sketch.pixiv.net", "sensei.pixiv.net", "source-zingaro.pixiv.net", "ssl.pixiv.net"],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://210.140.174.37",
+            "https://210.140.175.130",
+            "https://210.140.170.179",
+            "https://210.140.131.219",
+            "https://210.140.131.223",
+            "https://210.140.131.226",
+            "https://210.168.35.201",
+            "https://210.140.92.185"
+          ],
+          "lb": { "policy": "random", "try_duration": "5s" },
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

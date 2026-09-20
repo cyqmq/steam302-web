@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "steam_cdn_cloudflare",
+  "name": "Steam 页面布局/图片修复 (Cloudflare)",
+  "group": "steam",
+  "description": "Cloudflare 前缀的 steamstatic 域名走 dogfight360 的 stdns 上游（TLS SNI 保持真实域名）。",
+  "enabled": true,
+  "sites": [
+    {
+      "hosts": [
+        "cdn.cloudflare.steamstatic.com",
+        "community.cloudflare.steamstatic.com",
+        "store.cloudflare.steamstatic.com",
+        "avatars.cloudflare.steamstatic.com",
+        "clan.cloudflare.steamstatic.com",
+        "shared.cloudflare.steamstatic.com",
+        "video.cloudflare.steamstatic.com"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://stdns.dogfight360.com"],
+          "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": false },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

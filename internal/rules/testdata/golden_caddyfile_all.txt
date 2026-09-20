@@ -1,0 +1,1029 @@
+{
+    admin off
+    auto_https off
+    default_bind 127.0.0.1
+}
+
+https://discord.com:25584 https://updates.discord.com:25584 https://status.discord.com:25584 https://streamkit.discord.com:25584 https://feedback.discord.com:25584 https://click.discord.com:25584 https://pax.discord.com:25584 https://printer.discord.com:25584 https://ptb.discord.com:25584 https://canary.discord.com:25584 https://bugs.discord.com:25584 https://i18n.discord.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+@m0 {
+    path /assets/*
+}
+reverse_proxy @m0 https://dldsn.steam302.xyz {
+    header_up Host dldsn.steam302.xyz
+    header_up -Cookie
+    header_down -Set-Cookie
+    header_down -Cookie
+    transport http {
+        tls
+    }
+}
+reverse_proxy https://162.159.138.232 https://162.159.135.232 https://162.159.137.232 https://162.159.128.233 https://162.159.136.232 {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://discordapp.com:25584 https://url9177.discordapp.com:25584 https://canary-api.discordapp.com:25584 https://cdn-ptb.discordapp.com:25584 https://ptb.discordapp.com:25584 https://status.discordapp.com:25584 https://cdn-canary.discordapp.com:25584 https://cdn.discordapp.com:25584 https://streamkit.discordapp.com:25584 https://i18n.discordapp.com:25584 https://url9624.discordapp.com:25584 https://url7195.discordapp.com:25584 https://merch.discordapp.com:25584 https://printer.discordapp.com:25584 https://canary.discordapp.com:25584 https://apps.discordapp.com:25584 https://pax.discordapp.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://162.159.133.233 https://162.159.129.233 https://162.159.130.233 https://162.159.134.233 https://162.159.135.233 {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://gateway.discord.gg:25584 https://discord.gg:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://162.159.136.234 https://162.159.134.234 https://162.159.135.234 https://162.159.133.234 https://162.159.130.234 {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://media.discordapp.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://162.159.133.232 https://162.159.134.232 https://162.159.129.232 https://162.159.130.232 https://162.159.128.232 {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://images-ext-1.discordapp.net:25584 https://images-ext-2.discordapp.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+redir https://media.discordapp.net{uri} permanent
+}
+
+https://dl.discordapp.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://dlds.steam302.xyz {
+    header_up Host dlds.steam302.xyz
+    header_up -Cookie
+    header_down --Set-Cookie
+    header_down --Cookie
+    transport http {
+        tls
+    }
+}
+}
+
+https://discord-attachments-uploads-prd.storage.googleapis.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://storage.googleapis.com {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name uploads
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://support.discord.com:25584 https://safety.discord.com:25584 https://support-dev.discord.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://supportds.steam302.xyz https://safetyds.steam302.xyz https://support-devds.steam302.xyz {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+    }
+}
+}
+
+https://github.com:25584 https://www.github.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://20.205.243.166 {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://gist.github.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://ghgist.steam302.xyz {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://api.github.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://20.27.177.116 {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://raw.githubusercontent.com:25584 https://raw.github.com:25584 https://camo.githubusercontent.com:25584 https://cloud.githubusercontent.com:25584 https://avatars.githubusercontent.com:25584 https://avatars0.githubusercontent.com:25584 https://avatars1.githubusercontent.com:25584 https://avatars2.githubusercontent.com:25584 https://avatars3.githubusercontent.com:25584 https://user-images.githubusercontent.com:25584 https://github-releases.githubusercontent.com:25584 https://objects.githubusercontent.com:25584 https://media.githubusercontent.com:25584 https://release-assets.githubusercontent.com:25584 https://private-user-images.githubusercontent.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://185.199.109.133 {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://assets-cdn.github.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://185.199.109.153 {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://github.githubassets.com:25584 https://help.github.com:25584 https://docs.github.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://185.199.109.154 {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://codeload.github.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://20.205.243.165 {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://github.io:25584 https://www.github.io:25584 https://*.github.io:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://185.199.108.153 {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://pages.github.com:25584 https://copilot.github.com:25584 https://services.github.com:25584 https://resources.github.com:25584 https://developer.github.com:25584 https://partner.github.com:25584 https://desktop.github.com:25584 https://guides.github.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://185.199.110.153 {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://support.github.com:25584 https://education.github.com:25584 https://enterprise.github.com:25584 https://lab.github.com:25584 https://classroom.github.com:25584 https://central.github.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://gh140.steam302.xyz {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://desktop.githubusercontent.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://185.199.108.133 {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://www.google.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+@m0 {
+    path /recaptcha/*
+}
+reverse_proxy @m0 https://www.recaptcha.net {
+    header_up Host www.recaptcha.net
+    transport http {
+        tls
+        tls_server_name www.recaptcha.net
+    }
+}
+reverse_proxy https://google.com {
+    header_up Host www.google.com
+    transport http {
+        tls
+        tls_server_name www.google.com
+    }
+}
+}
+
+https://mod.io:25584 https://*.mod.io:25584 https://*.old.mod.io:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+@m0 {
+    path *
+}
+rewrite @m0 /302{host}{uri}
+reverse_proxy https://m0di0.steam302.xyz {
+    header_up Host m0di0.steam302.xyz
+    transport http {
+        tls
+    }
+}
+}
+
+https://binary.lge.modcdn.io:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://binary.modcdn.io {
+    header_up Host binary.modcdn.io
+    transport http {
+        tls
+    }
+}
+}
+
+https://pixiv.net:25584 https://www.pixiv.net:25584 https://m.pixiv.net:25584 https://touch.pixiv.net:25584 https://accounts.pixiv.net:25584 https://app-api.pixiv.net:25584 https://oauth.secure.pixiv.net:25584 https://public-api.secure.pixiv.net:25584 https://recommend-api.pixiv.net:25584 https://embed.pixiv.net:25584 https://dic.pixiv.net:25584 https://en.dic.pixiv.net:25584 https://help.pixiv.net:25584 https://fanbox.cc:25584 https://www.fanbox.cc:25584 https://api.fanbox.cc:25584 https://fanbox.pixiv.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://210.140.92.186 https://210.140.92.187 https://210.140.92.183 https://210.140.92.181 https://210.140.92.179 https://210.140.92.182 {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://i.pximg.net:25584 https://s.pximg.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://210.140.139.131 https://210.140.139.133 https://210.140.139.132 https://210.140.92.142 https://210.140.139.136 https://210.140.92.141 https://210.140.139.135 https://210.140.139.134 https://210.140.92.143 https://210.140.92.144 https://210.140.92.149 https://210.140.92.145 https://210.140.92.148 https://210.140.92.147 https://210.140.92.146 {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://comic.pixiv.net:25584 https://novel.pixiv.net:25584 https://img-comic.pixiv.net:25584 https://img-novel.pixiv.net:25584 https://imgsi1.pixiv.net:25584 https://img-sketch.pixiv.net:25584 https://i1.pixiv.net:25584 https://i2.pixiv.net:25584 https://i3.pixiv.net:25584 https://i4.pixiv.net:25584 https://meetup.pixiv.net:25584 https://origin-i1.pixiv.net:25584 https://origin-i3.pixiv.net:25584 https://origin-i4.pixiv.net:25584 https://origin-source.pixiv.net:25584 https://cdn-origin-comic.pixiv.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://210.140.131.153 https://210.140.131.147 https://210.140.131.144 https://210.140.131.145 {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://sketch.pixiv.net:25584 https://sensei.pixiv.net:25584 https://source-zingaro.pixiv.net:25584 https://ssl.pixiv.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://210.140.174.37 https://210.140.175.130 https://210.140.170.179 https://210.140.131.219 https://210.140.131.223 https://210.140.131.226 https://210.168.35.201 https://210.140.92.185 {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://steambroadcast.akamaized.net:25584 https://steambroadcastchat.akamaized.net:25584 https://steamvideo-a.akamaihd.net:25584 https://steamstore-a.akamaihd.net:25584 https://steamusercontent-a.akamaihd.net:25584 https://steamcommunity-a.akamaihd.net:25584 https://steamcdn-a.akamaihd.net:25584 https://steamuserimages-a.akamaihd.net:25584 https://community.akamai.steamstatic.com:25584 https://avatars.akamai.steamstatic.com:25584 https://community.steamstatic.com:25584 https://cdn.akamai.steamstatic.com:25584 https://avatars.steamstatic.com:25584 https://shared.akamai.steamstatic.com:25584 https://clan.akamai.steamstatic.com:25584 https://video.akamai.steamstatic.com:25584 https://client-update.akamai.steamstatic.com:25584 https://clientconfig.akamai.steamstatic.com:25584 https://clan.steamstatic.com:25584 https://shared.steamstatic.com:25584 https://images.akamai.steamusercontent.com:25584 https://images.steamusercontent.com:25584 https://cdn.akamai.steamusercontent.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://steamuserimages-a.akamaihd.net.edgesuite.net https://steamstore-a.akamaihd.net.edgesuite.net https://eaassets-a.akamaihd.net.edgesuite.net https://steamcommunity-a.akamaihd.net.edgesuite.net {
+    dynamic a steamuserimages-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamstore-a.akamaihd.net.edgesuite.net 443
+    dynamic a eaassets-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamcommunity-a.akamaihd.net.edgesuite.net 443
+    lb_policy random_choose 4
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name img-s-msn-com.akamaized.net
+    }
+}
+}
+
+https://cdn.cloudflare.steamstatic.com:25584 https://community.cloudflare.steamstatic.com:25584 https://store.cloudflare.steamstatic.com:25584 https://avatars.cloudflare.steamstatic.com:25584 https://clan.cloudflare.steamstatic.com:25584 https://shared.cloudflare.steamstatic.com:25584 https://video.cloudflare.steamstatic.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://stdns.dogfight360.com {
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+    }
+}
+}
+
+https://cdn.fastly.steamstatic.com:25584 https://community.fastly.steamstatic.com:25584 https://store.fastly.steamstatic.com:25584 https://avatars.fastly.steamstatic.com:25584 https://shared.fastly.steamstatic.com:25584 https://clan.fastly.steamstatic.com:25584 https://video.fastly.steamstatic.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://steamuserimages-a.akamaihd.net.edgesuite.net https://steamstore-a.akamaihd.net.edgesuite.net https://eaassets-a.akamaihd.net.edgesuite.net https://steamcommunity-a.akamaihd.net.edgesuite.net {
+    dynamic a steamuserimages-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamstore-a.akamaihd.net.edgesuite.net 443
+    dynamic a eaassets-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamcommunity-a.akamaihd.net.edgesuite.net 443
+    lb_policy random_choose 4
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name img-s-msn-com.akamaized.net
+    }
+}
+}
+
+https://steam-chat.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+    header {
+        Access-Control-Allow-Origin https://steamloopback.host
+    }
+@m0 {
+    path /chat/beginfileupload/*
+    method POST
+}
+reverse_proxy @m0 https://str001.steam302.xyz https://str002.steam302.xyz https://str003.steam302.xyz {
+    lb_policy random_choose 2
+    fail_duration 3s
+    max_fails 3
+    unhealthy_latency 1000ms
+    unhealthy_status 5xx
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name statuspage.akamaized.net
+    }
+}
+reverse_proxy https://steamuserimages-a.akamaihd.net.edgesuite.net https://steamstore-a.akamaihd.net.edgesuite.net https://eaassets-a.akamaihd.net.edgesuite.net https://steamcommunity-a.akamaihd.net.edgesuite.net {
+    dynamic a steamuserimages-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamstore-a.akamaihd.net.edgesuite.net 443
+    dynamic a eaassets-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamcommunity-a.akamaihd.net.edgesuite.net 443
+    lb_policy random_choose 4
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name img-s-msn-com.akamaized.net
+    }
+}
+}
+
+https://steamcloud-ugc.storage.googleapis.com:25584 https://steamcloud-eu-ams.storage.googleapis.com:25584 https://steamcloud-eu-fra.storage.googleapis.com:25584 https://steamcloud-finland.storage.googleapis.com:25584 https://steamcloud-saopaulo.storage.googleapis.com:25584 https://steamcloud-singapore.storage.googleapis.com:25584 https://steamcloud-sydney.storage.googleapis.com:25584 https://steamcloud-taiwan.storage.googleapis.com:25584 https://steamcloud-eu.storage.googleapis.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://storage.googleapis.com https://chromedriver.storage.googleapis.com {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name uploads
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://steamcommunity.com:25584 https://www.steamcommunity.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+@m0 {
+    path /comment/*
+    path /forum/*
+    path *discussions*
+    path *tradingforum*
+    path *eventcomments*
+    path /chat/beginfileupload/*
+}
+reverse_proxy @m0 https://str001.steam302.xyz https://str002.steam302.xyz https://str003.steam302.xyz https://str004.steam302.xyz {
+    lb_policy random_choose 3
+    fail_duration 3s
+    max_fails 3
+    unhealthy_latency 1000ms
+    unhealthy_status 5xx
+    header_up Host steamcommunity.com
+    header_up User-Agent .* "$0 Googlebot/2.1 (+http://www.google.com/bot.html)"
+    transport http {
+        tls
+        tls_server_name statuspage.akamaized.net
+    }
+}
+reverse_proxy https://steamuserimages-a.akamaihd.net.edgesuite.net https://steamstore-a.akamaihd.net.edgesuite.net https://eaassets-a.akamaihd.net.edgesuite.net https://steamcommunity-a.akamaihd.net.edgesuite.net {
+    dynamic a steamuserimages-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamstore-a.akamaihd.net.edgesuite.net 443
+    dynamic a eaassets-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamcommunity-a.akamaihd.net.edgesuite.net 443
+    lb_policy random_choose 4
+    lb_try_duration 5s
+    header_up Host steamcommunity.com
+    header_up User-Agent .* "$0 Googlebot/2.1 (+http://www.google.com/bot.html)"
+    transport http {
+        tls
+        tls_server_name img-s-msn-com.akamaized.net
+    }
+}
+}
+
+https://store.steampowered.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+@m0 {
+    path /app/*
+    path /agecheck/*
+}
+reverse_proxy @m0 https://steamuserimages-a.akamaihd.net.edgesuite.net https://steamstore-a.akamaihd.net.edgesuite.net https://eaassets-a.akamaihd.net.edgesuite.net https://steamcommunity-a.akamaihd.net.edgesuite.net {
+    dynamic a steamuserimages-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamstore-a.akamaihd.net.edgesuite.net 443
+    dynamic a eaassets-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamcommunity-a.akamaihd.net.edgesuite.net 443
+    lb_policy random_choose 4
+    lb_try_duration 5s
+    header_up Host store.steampowered.com
+    transport http {
+        tls
+        tls_server_name img-s-msn-com.akamaized.net
+    }
+}
+@m1 {
+    path /friends/*
+    path /api/addtowishlist
+    path /explore/followgame/*
+}
+reverse_proxy @m1 https://str001.steam302.xyz https://str002.steam302.xyz https://str003.steam302.xyz {
+    header_up Host store.steampowered.com
+    transport http {
+        tls
+        tls_server_name statuspage.akamaized.net
+    }
+}
+reverse_proxy https://steamuserimages-a.akamaihd.net.edgesuite.net https://steamstore-a.akamaihd.net.edgesuite.net https://eaassets-a.akamaihd.net.edgesuite.net https://steamcommunity-a.akamaihd.net.edgesuite.net {
+    dynamic a steamuserimages-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamstore-a.akamaihd.net.edgesuite.net 443
+    dynamic a eaassets-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamcommunity-a.akamaihd.net.edgesuite.net 443
+    lb_policy random_choose 4
+    lb_try_duration 5s
+    header_up Host store.steampowered.com
+    transport http {
+        tls
+        tls_server_name img-s-msn-com.akamaized.net
+    }
+}
+}
+
+https://api.steampowered.com:25584 https://help.steampowered.com:25584 https://login.steampowered.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://steamuserimages-a.akamaihd.net.edgesuite.net https://steamstore-a.akamaihd.net.edgesuite.net https://eaassets-a.akamaihd.net.edgesuite.net https://steamcommunity-a.akamaihd.net.edgesuite.net {
+    dynamic a steamuserimages-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamstore-a.akamaihd.net.edgesuite.net 443
+    dynamic a eaassets-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamcommunity-a.akamaihd.net.edgesuite.net 443
+    lb_policy random_choose 4
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name img-s-msn-com.akamaized.net
+    }
+}
+}
+
+https://checkout.steampowered.com:25584 https://store.akamai.steamstatic.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://steamuserimages-a.akamaihd.net.edgesuite.net https://steamstore-a.akamaihd.net.edgesuite.net https://eaassets-a.akamaihd.net.edgesuite.net https://steamcommunity-a.akamaihd.net.edgesuite.net {
+    dynamic a steamuserimages-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamstore-a.akamaihd.net.edgesuite.net 443
+    dynamic a eaassets-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamcommunity-a.akamaihd.net.edgesuite.net 443
+    lb_policy random_choose 4
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name img-s-msn-com.akamaized.net
+    }
+}
+}
+
+https://twitch.tv:25584 https://www.twitch.tv:25584 https://m.twitch.tv:25584 https://app.twitch.tv:25584 https://clips.twitch.tv:25584 https://gql.twitch.tv:25584 https://dashboard.twitch.tv:25584 https://api.twitch.tv:25584 https://player.twitch.tv:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://twitch.map.fastly.net {
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://vod-secure.twitch.tv:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://ds0h3roq6wcgc.cloudfront.net {
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://vod-storyboards.twitch.tv:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://dlifex0fg7ru9.cloudfront.net {
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://vod-metro.twitch.tv:25584 https://music.twitch.tv:25584 https://player.m7g.twitch.tv:25584 https://blog.twitch.tv:25584 https://dev.twitch.tv:25584 https://brand.twitch.tv:25584 https://extension-files.twitch.tv:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://d8t045al7vai0.cloudfront.net https://d12b3e89c9703p.cloudfront.net https://dnjmu7cm5xw9w.cloudfront.net https://d1x43om3304ey9.cloudfront.net https://d205b01qzi0xib.cloudfront.net https://d2g064yykcu7rs.cloudfront.net https://d36mepituis1gg.cloudfront.net {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://irc-ws.chat.twitch.tv:25584 https://irc-ws-r.chat.twitch.tv:25584 https://pubsub-edge.twitch.tv:25584 https://ingest.twitch.tv:25584 https://id.twitch.tv:25584 https://discuss.dev.twitch.tv:25584 https://usher.ttvnw.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://5a895ed07aed1b254ee21cd78958ae0b.steam302.xyz https://065f67277ae87878fffaa60519b3ee5c.steam302.xyz https://890c88446f94f25bd32a3f1e0df6c120.steam302.xyz https://b3d696173d52b66e1caab6145cb5058b.steam302.xyz https://2973c6ca0e111662ed293b57dbae9fbf.steam302.xyz https://522c432cc10e237a02fa1d6481d7d247.steam302.xyz https://634d6519809b2734de8cc8aa317c7f28.steam302.xyz {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://passport.twitch.tv:25584 https://id-cdn.twitch.tv:25584 https://assets.help.twitch.tv:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://passttv.steam302.xyz https://idcdnttv.steam302.xyz https://ashelpttv.steam302.xyz {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://spade.twitch.tv:25584 https://trowel.twitch.tv:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://science-edge-external-prod-73889260.us-west-2.elb.amazonaws.com {
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://cvp.twitch.tv:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://e9221.i.akamaiedge.net {
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://www.youtube.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+@m0 {
+    path /iframe_api
+    path /iframe_api.js
+}
+file_server @m0 {
+        root web/files/iframe
+    }
+@m1 {
+    not path /iframe_api
+    not path /iframe_api.js
+}
+respond @m1 200 {
+        body "www.youtube.com 已被本地的 Steam 创意工坊大图修复功能占用；关闭该功能可恢复正常访问。"
+    }
+}
+
+http://:24196 {
+    redir https://{host}{uri} permanent
+}

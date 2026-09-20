@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "id": "twitch_accel",
+  "name": "Twitch 网页/观看修复",
+  "group": "media",
+  "description": "twitch 全系：主站走 Fastly 边缘，视频/回放走 CloudFront，聊天/直播相关走 steam302 专用节点。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": [
+        "twitch.tv",
+        "www.twitch.tv",
+        "m.twitch.tv",
+        "app.twitch.tv",
+        "clips.twitch.tv",
+        "gql.twitch.tv",
+        "dashboard.twitch.tv",
+        "api.twitch.tv",
+        "player.twitch.tv"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://twitch.map.fastly.net"],
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["vod-secure.twitch.tv"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://ds0h3roq6wcgc.cloudfront.net"],
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["vod-storyboards.twitch.tv"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://dlifex0fg7ru9.cloudfront.net"],
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["vod-metro.twitch.tv", "music.twitch.tv", "player.m7g.twitch.tv", "blog.twitch.tv", "dev.twitch.tv", "brand.twitch.tv", "extension-files.twitch.tv"],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://d8t045al7vai0.cloudfront.net",
+            "https://d12b3e89c9703p.cloudfront.net",
+            "https://dnjmu7cm5xw9w.cloudfront.net",
+            "https://d1x43om3304ey9.cloudfront.net",
+            "https://d205b01qzi0xib.cloudfront.net",
+            "https://d2g064yykcu7rs.cloudfront.net",
+            "https://d36mepituis1gg.cloudfront.net"
+          ],
+          "lb": { "policy": "random" },
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "irc-ws.chat.twitch.tv",
+        "irc-ws-r.chat.twitch.tv",
+        "pubsub-edge.twitch.tv",
+        "ingest.twitch.tv",
+        "id.twitch.tv",
+        "discuss.dev.twitch.tv",
+        "usher.ttvnw.net"
+      ],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://5a895ed07aed1b254ee21cd78958ae0b.steam302.xyz",
+            "https://065f67277ae87878fffaa60519b3ee5c.steam302.xyz",
+            "https://890c88446f94f25bd32a3f1e0df6c120.steam302.xyz",
+            "https://b3d696173d52b66e1caab6145cb5058b.steam302.xyz",
+            "https://2973c6ca0e111662ed293b57dbae9fbf.steam302.xyz",
+            "https://522c432cc10e237a02fa1d6481d7d247.steam302.xyz",
+            "https://634d6519809b2734de8cc8aa317c7f28.steam302.xyz"
+          ],
+          "lb": { "policy": "random" },
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["passport.twitch.tv", "id-cdn.twitch.tv", "assets.help.twitch.tv"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://passttv.steam302.xyz", "https://idcdnttv.steam302.xyz", "https://ashelpttv.steam302.xyz"],
+          "lb": { "policy": "random" },
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["spade.twitch.tv", "trowel.twitch.tv"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://science-edge-external-prod-73889260.us-west-2.elb.amazonaws.com"],
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["cvp.twitch.tv"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://e9221.i.akamaiedge.net"],
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

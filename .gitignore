@@ -1,0 +1,21 @@
+# 构建产物
+bin/
+
+# 证书（机器相关 + MITM 敏感）
+config/certs/
+*.pem
+*.key
+
+# 运行时生成物 / 机器相关状态
+Caddyfile
+S302.hosts
+config/overrides.json
+config/s302fwd.pid
+config/s302fwd.log
+*.log
+
+# 系统
+.DS_Store
+# Python
+__pycache__/
+*.pyc

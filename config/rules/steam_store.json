@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "id": "steam_store",
+  "name": "Steam 商店/账号系列",
+  "group": "steam",
+  "description": "store/api/help/login/checkout/store.akamai 等域名：登录/愿望单走 steam302 节点，其余走 Akamai 边缘。",
+  "enabled": true,
+  "sites": [
+    {
+      "hosts": ["store.steampowered.com"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "match": { "path": ["/app/*", "/agecheck/*"] },
+          "upstreams": [
+            "https://steamuserimages-a.akamaihd.net.edgesuite.net",
+            "https://steamstore-a.akamaihd.net.edgesuite.net",
+            "https://eaassets-a.akamaihd.net.edgesuite.net",
+            "https://steamcommunity-a.akamaihd.net.edgesuite.net"
+          ],
+          "dynamic_upstreams": [
+            { "dns": "a", "host": "steamuserimages-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamstore-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "eaassets-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamcommunity-a.akamaihd.net.edgesuite.net", "port": 443 }
+          ],
+          "lb": { "policy": "random_choose", "choose": 4, "try_duration": "5s" },
+          "transport": { "tls": true, "tls_server_name": "img-s-msn-com.akamaized.net", "insecure_skip_verify": false },
+          "header_up": [["Host", "store.steampowered.com"]]
+        },
+        {
+          "type": "reverse_proxy",
+          "match": { "path": ["/friends/*", "/api/addtowishlist", "/explore/followgame/*"] },
+          "upstreams": [
+            "https://str001.steam302.xyz",
+            "https://str002.steam302.xyz",
+            "https://str003.steam302.xyz"
+          ],
+          "transport": { "tls": true, "tls_server_name": "statuspage.akamaized.net", "insecure_skip_verify": false },
+          "header_up": [["Host", "store.steampowered.com"]]
+        },
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://steamuserimages-a.akamaihd.net.edgesuite.net",
+            "https://steamstore-a.akamaihd.net.edgesuite.net",
+            "https://eaassets-a.akamaihd.net.edgesuite.net",
+            "https://steamcommunity-a.akamaihd.net.edgesuite.net"
+          ],
+          "dynamic_upstreams": [
+            { "dns": "a", "host": "steamuserimages-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamstore-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "eaassets-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamcommunity-a.akamaihd.net.edgesuite.net", "port": 443 }
+          ],
+          "lb": { "policy": "random_choose", "choose": 4, "try_duration": "5s" },
+          "transport": { "tls": true, "tls_server_name": "img-s-msn-com.akamaized.net", "insecure_skip_verify": false },
+          "header_up": [["Host", "store.steampowered.com"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["api.steampowered.com", "help.steampowered.com", "login.steampowered.com"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://steamuserimages-a.akamaihd.net.edgesuite.net",
+            "https://steamstore-a.akamaihd.net.edgesuite.net",
+            "https://eaassets-a.akamaihd.net.edgesuite.net",
+            "https://steamcommunity-a.akamaihd.net.edgesuite.net"
+          ],
+          "dynamic_upstreams": [
+            { "dns": "a", "host": "steamuserimages-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamstore-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "eaassets-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamcommunity-a.akamaihd.net.edgesuite.net", "port": 443 }
+          ],
+          "lb": { "policy": "random_choose", "choose": 4, "try_duration": "5s" },
+          "transport": { "tls": true, "tls_server_name": "img-s-msn-com.akamaized.net", "insecure_skip_verify": false },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["checkout.steampowered.com", "store.akamai.steamstatic.com"],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://steamuserimages-a.akamaihd.net.edgesuite.net",
+            "https://steamstore-a.akamaihd.net.edgesuite.net",
+            "https://eaassets-a.akamaihd.net.edgesuite.net",
+            "https://steamcommunity-a.akamaihd.net.edgesuite.net"
+          ],
+          "dynamic_upstreams": [
+            { "dns": "a", "host": "steamuserimages-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamstore-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "eaassets-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamcommunity-a.akamaihd.net.edgesuite.net", "port": 443 }
+          ],
+          "lb": { "policy": "random_choose", "choose": 4, "try_duration": "5s" },
+          "transport": { "tls": true, "tls_server_name": "img-s-msn-com.akamaized.net", "insecure_skip_verify": false },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

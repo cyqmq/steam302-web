@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://steam302-web.local/schemas/rule",
+  "title": "Service rule catalog entry",
+  "description": "一条服务的完整规则定义。每个 config/rules/*.json 描述一个可独立开关的服务。",
+  "type": "object",
+  "required": ["schema_version", "name", "group", "enabled", "sites"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$",
+      "description": "机器可读唯一标识，用于 WebUI/命令行开关。缺省取文件名"
+    },
+    "name": { "type": "string", "description": "展示名称，如 'Steam 社区解锁'" },
+    "group": {
+      "type": "string",
+      "enum": ["steam", "github", "chat", "media", "image", "game", "misc"],
+      "description": "分组，WebUI 按组渲染开关"
+    },
+    "description": { "type": "string" },
+    "enabled": { "type": "boolean", "description": "是否默认启用（WebUI 可随时切换）" },
+    "needs_files": {
+      "type": ["array", "null"],
+      "items": { "type": "string" },
+      "description": "该服务依赖的本地文件路径（相对项目根），存在才渲染。如 YouTube iframe 修复脚本"
+    },
+    "sites": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/site" }
+    }
+  },
+  "$defs": {
+    "site": {
+      "type": "object",
+      "required": ["hosts", "handlers"],
+      "properties": {
+        "hosts": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^\\*?\\.?[a-z0-9.-]+$" },
+          "description": "域名列表，与 hosts 文件中写入的域名保持一致，将全部 →127.0.0.1"
+        },
+        "tls_cert": { "type": ["string", "null"], "description": "证书文件（来自 env 默认）" },
+        "tls_key": { "type": ["string", "null"] },
+        "pna_cors": {
+          "type": "boolean",
+          "description": "附加 CORS/PNA 头并处理 OPTIONS 预检（浏览器跨域与 steamloopback.host 依赖）"
+        },
+        "extra_headers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "value"],
+            "properties": {
+              "name": { "type": "string" },
+              "value": { "type": "string" },
+              "defer": { "type": "boolean" }
+            }
+          },
+          "description": "站点级响应头（追加/覆盖上游）"
+        },
+        "handlers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/handler" }
+        }
+      }
+    },
+    "handler": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["reverse_proxy", "file_server", "respond", "redir", "rewrite"]
+        },
+        "match": { "$ref": "#/$defs/match" },
+        "upstreams": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^(https?://)?" },
+          "description": "http(s) 上游列表，支持域名或 IP；留空时无法代理则该 handler 被跳过"
+        },
+        "dynamic_upstreams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["dns", "host", "port"],
+            "properties": {
+              "dns": { "type": "string", "description": "解析方式，当前固定 'a'" },
+              "host": { "type": "string" },
+              "port": { "type": "integer" }
+            }
+          },
+          "description": "按 DNS 结果动态解析的上游（配合 dir-source）"
+        },
+        "lb": {
+          "type": "object",
+          "properties": {
+            "policy": { "enum": ["round_robin", "random", "random_choose", "first", "ip_hash"] },
+            "choose": { "type": "integer", "description": "random_choose 随机挑几个（用于Steam多节点）" },
+            "try_duration": { "type": "string", "description": "lb_try_duration，如 '5s'" },
+            "fail_duration": { "type": "string", "description": "fail_duration 健康检查窗口" },
+            "max_fails": { "type": "integer" },
+            "unhealthy_latency": { "type": "string" },
+            "unhealthy_status": { "type": "string", "description": "'5xx' 等" }
+          }
+        },
+        "transport": {
+          "type": "object",
+          "properties": {
+            "tls": { "type": "boolean" },
+            "tls_server_name": { "type": ["string", "null"], "description": "SNI 伪装：连接上游时使用的 TLS SNI" },
+            "insecure_skip_verify": { "type": "boolean" }
+          }
+        },
+        "header_up": {
+          "type": "array",
+          "description": "请求头改写：[name, value] 或 [name, match, value]（正则替换）或 [name, null] 表示删除(-前缀)",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 3,
+            "items": { "type": ["string", "null"] }
+          }
+        },
+        "header_down": {
+          "type": "array",
+          "items": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": ["string", "null"] } }
+        },
+        "respond": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "integer" },
+            "body": { "type": "string" },
+            "close": { "type": "boolean" }
+          }
+        },
+        "file_server": {
+          "type": "object",
+          "properties": {
+            "root": { "type": "string", "description": "站点根目录（相对项目根）" },
+            "browse": { "type": "boolean" }
+          }
+        },
+        "redir": {
+          "type": "object",
+          "properties": {
+            "to": { "type": "string", "description": "支持 {uri}/{host} 占位符" },
+            "permanent": { "type": "boolean" }
+          }
+        },
+        "rewrite": {
+          "type": "object",
+          "properties": { "to": { "type": "string" } }
+        }
+      }
+    },
+    "match": {
+      "type": "object",
+      "description": "匹配条件（空/缺省 = 全部）。所有键逻辑 AND。",
+      "properties": {
+        "path": { "type": "array", "items": { "type": "string" } },
+        "method": { "type": "array", "items": { "type": "string" } },
+        "not": {
+          "type": "array",
+          "description": "排除条件，满足其中任一则不算匹配",
+          "items": { "$ref": "#/$defs/match" }
+        }
+      }
+    }
+  }
+}

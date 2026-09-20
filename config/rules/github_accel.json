@@ -1,0 +1,343 @@
+{
+  "schema_version": 1,
+  "id": "github_accel",
+  "name": "GitHub 加速",
+  "group": "misc",
+  "description": "github 全系域名本地接管，按用途转发到不同 gh*.steam302.xyz 加速节点。upstreams 均可替换为自建节点。",
+  "enabled": true,
+  "sites": [
+    {
+      "hosts": [
+        "github.com",
+        "www.github.com"
+      ],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://20.205.243.166"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "gist.github.com"
+      ],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://ghgist.steam302.xyz"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "api.github.com"
+      ],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://20.27.177.116"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "raw.githubusercontent.com",
+        "raw.github.com",
+        "camo.githubusercontent.com",
+        "cloud.githubusercontent.com",
+        "avatars.githubusercontent.com",
+        "avatars0.githubusercontent.com",
+        "avatars1.githubusercontent.com",
+        "avatars2.githubusercontent.com",
+        "avatars3.githubusercontent.com",
+        "user-images.githubusercontent.com",
+        "github-releases.githubusercontent.com",
+        "objects.githubusercontent.com",
+        "media.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+        "private-user-images.githubusercontent.com"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://185.199.109.133"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "assets-cdn.github.com"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://185.199.109.153"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "github.githubassets.com",
+        "help.github.com",
+        "docs.github.com"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://185.199.109.154"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "codeload.github.com"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://20.205.243.165"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "github.io",
+        "www.github.io",
+        "*.github.io"
+      ],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://185.199.108.153"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "pages.github.com",
+        "copilot.github.com",
+        "services.github.com",
+        "resources.github.com",
+        "developer.github.com",
+        "partner.github.com",
+        "desktop.github.com",
+        "guides.github.com"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://185.199.110.153"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "support.github.com",
+        "education.github.com",
+        "enterprise.github.com",
+        "lab.github.com",
+        "classroom.github.com",
+        "central.github.com"
+      ],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://gh140.steam302.xyz"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": [
+        "desktop.githubusercontent.com"
+      ],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://185.199.108.133"
+          ],
+          "lb": {
+            "policy": "random"
+          },
+          "transport": {
+            "tls": true,
+            "insecure_skip_verify": true,
+            "tls_server_name": "{host}"
+          },
+          "header_up": [
+            [
+              "Host",
+              "{host}"
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

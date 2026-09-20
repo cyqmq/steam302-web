@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "google_recaptcha",
+  "name": "Google reCAPTCHA 直连",
+  "group": "misc",
+  "description": "www.google.com 下的 /recaptcha/* 转发到 www.recaptcha.net，其余走 google.com，规避国内访问 Google 资源的问题。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["www.google.com"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "match": { "path": ["/recaptcha/*"] },
+          "upstreams": ["https://www.recaptcha.net"],
+          "transport": { "tls": true, "tls_server_name": "www.recaptcha.net", "insecure_skip_verify": false },
+          "header_up": [["Host", "www.recaptcha.net"]]
+        },
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://google.com"],
+          "transport": { "tls": true, "tls_server_name": "www.google.com", "insecure_skip_verify": false },
+          "header_up": [["Host", "www.google.com"]]
+        }
+      ]
+    }
+  ]
+}
