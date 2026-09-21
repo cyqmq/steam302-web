@@ -168,6 +168,25 @@ go test ./...        # golden 渲染 + hosts + fwd
 go test -race ./internal/fwd/
 ```
 
+## 参考仓库
+
+本项目是以下仓库/思路的组合移植与演进，借用了各自的核心机制：
+
+| 仓库 | 参考点 | 本仓库对应实现 |
+| --- | --- | --- |
+| [lyc8503/Steamcommunity_302](https://github.com/lyc8503/Steamcommunity_302) | 原版工具：hosts 劫持 + Caddy MITM 反代 + 自签证书 + 监听 80/443 转发 | 全仓规则目录/证书/转发体系即为该思路的 Go 重写 |
+| [BlockyDeer/CaddyConfig](https://github.com/BlockyDeer/CaddyConfig) | 纯 Caddy 版 steamcommunity302（把 feature 续进 caddy.json，含 hosts、UA 伪装、SNI 还原） | Caddyfile 渲染、`tls_server_name` SNI 伪装、`header_up Host {host}` 的直接出处 |
+| [Chinachani/steam-hosts-tools](https://github.com/Chinachani/steam-hosts-tools) | DoH 防污染解析（DNSPod/AliDNS）+ TCP 443 并发测速优选 + hosts 备份/清洗 + Steam 域名清单 | `internal/prefer`（DoH 兜底、TCP 延迟排序——两者 DoH 源一致）、`internal/hosts`（快照） |
+| [mansourjabin/cdn-ip-database](https://github.com/mansourjabin/cdn-ip-database) | 厂商直发布的 CDN 段（Akamai/Cloudflare/Fastly/CloudFront…，daily resolved_ips.json） | `config/cdn_ips.json` vendored 段库 + `bin/fetchcdnips` 更新器（cidr 优选的数据源） |
+| [jitre/steam_hosts](https://github.com/jitre/steam_hosts)（fork 自 [fordes123/hosts_generator](https://github.com/fordes123/hosts_generator)） | GitHub Action + ECS DNS（DoH 带客户端子网）按区域解析出最优 Steam IP 生成 hosts | 区域自愈思路可对照：本仓用 `bin/prefer` 在本机实测代替 ECS 解析 |
+| [oldj/SwitchHosts](https://github.com/oldj/SwitchHosts) | 跨平台 hosts 管理（分组切换/远程 hosts/定时刷新/本地 HTTP API） | 与 `bin/webui` + `bin/genhosts` 的"分组开关 + 一键应用"功能等价，适合作为**客户端机器**上的 hosts 管理向工具 |
+| [4n0nymou3/Clean-IP-Scanner](https://github.com/4n0nymou3/Clean-IP-Scanner) | Termux/Xray 场景按 CDN 段扫描"干净 IP"（TCPing+下载测速+提交续扫） | cidr 模式采样/校验思路同源；其扫描仅为找到可连边缘，本仓再叠加"能 2xx 服务该域名"校验 |
+| [XIU2/CloudflareSpeedTest](https://github.com/XIU2/CloudflareSpeedTest) | TCP 握手测延迟 → HTTP 下载测速 → 排序（CDN 优选方法论） | `internal/prefer` 的探测流水线直接沿用该思路 |
+
+> 另外两类相关但未直接采用的思路值得关注：
+> - **自建接入节点**（`str*.steam302.xyz` 类）：上游 hosts-only 加速器运维方自建的反代节点池，本仓通过 `node` 模式优选接入（`env.json → upstream_defaults`）。
+> - **SwitchHosts 式远程 hosts 订阅**：在本机部署场景下可由用户手动配置 SwitchHosts 拉取 `S302.hosts` 同步到其它设备，作为对 WebUI 的补充。
+
 ## 已知限制
 
 - `youtube_iframe` 的 `web/files/iframe/iframe_api*` 仍是占位（P0 待实现，见 `docs/RULES.md`）。
