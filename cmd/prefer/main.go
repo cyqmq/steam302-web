@@ -170,7 +170,10 @@ func runPrefer(rootDir, cacheFile string, quick, debug bool, budget time.Duratio
 					r.ID, i, diag.Candidates, diag.Latency, diag.Speeded)
 			}
 			if entry == nil || len(entry.Ranked) == 0 {
-				fmt.Printf("[%s/site%d] 无可用节点\n", r.ID, i)
+				// 本次无可用节点：保留上一次的优选（last known good），避免网络抖动
+				// 窗口把有效 pin 一并清空、退化为单上游。坏 pin 已由校验阶段拒绝，
+				// 不会写入；待网络恢复重跑即刷新。
+				fmt.Printf("[%s/site%d] 无可用节点（保留旧优选）\n", r.ID, i)
 				continue
 			}
 			entries = dropPreferEntry(entries, entry.RuleID, entry.SiteIndex)

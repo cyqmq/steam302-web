@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -95,11 +97,19 @@ func validateRelease(ips []string, results []Result, o *Options) {
 			}
 			resp.Body.Close()
 			if o.ValidateAnyStatus {
-				// node 模式：放行 2xx/3xx/4xx（301/404 都算可达），仅拒 5xx/连接失败。
+				// node 模式：放行 2xx/4xx（301/404 都算可达），仅拒 5xx/连接失败。
 				// 另拒 421 Misdirected Request——这是 SNI/Host 与目标 vhost 不匹配的
 				// 规范状态码，说明该 IP 并未服务此域名。
 				if resp.StatusCode >= 500 || resp.StatusCode == 421 {
 					results[i].OK = false
+				} else if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+					// 3xx：若 Location 指向另一主机，说明该边缘把请求重定向回了别的站
+					// （如 github.com 边缘对 api.github.com 回 301 → github.com/），即
+					// 它并未服务目标域名。同主机重定向（support.github.com 等）仍放行。
+					if lu, err := url.Parse(resp.Header.Get("Location")); err == nil &&
+						lu.Host != "" && !strings.EqualFold(lu.Hostname(), o.ValidateHost) {
+						results[i].OK = false
+					}
 				}
 			} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				results[i].OK = false

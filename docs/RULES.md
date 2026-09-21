@@ -211,7 +211,9 @@ site 级配置（`config/rules/*.json` 的 `sites[].prefer`）：
   的 `tls_server_name`，`{host}` 占位替换为 site 首个域名）。
 - `validate_any_status: true` 时校验**只认传输可达**（对 GitHub 这类对裸 IP + 外部
   Host 可能回 30x/4xx 的边缘，任意非 5xx 应答状态都算可用），不走随遵从重定向的 2xx
-  判定；仍拒绝 5xx 与 `421 Misdirected Request`（SNI/vhost 不匹配的规范状态码）。
+  判定；仍拒绝 5xx、`421 Misdirected Request`，以及 **Location 指向其它主机的 3xx**
+  （如 `github.com` 边缘对 `api.github.com/zen` 回 `301 → github.com/zen`，说明该
+  IP 并未服务目标域名）。同主机重定向（如 `support.github.com`）仍放行。
 - `cidr`/`cf` 模式会以 site 首个域名为 Host、`validate_path` 为路径做一次"能返回 2xx
   才算可用"的校验（只认 2xx；403/5xx 一律丢弃），避免选到连不上该站点的边缘导致 502/403。
   能服务该域名的边缘可能只占少数，采样抽空会翻倍重试（24→48）。
@@ -261,9 +263,10 @@ bin/fetchghip --root . --rule github_accel --dry-run   # 预览不落盘
   `github.com` 回 500），段外 IP 也可能正好服务该域名。候选池只维护候选、不据此
   断言可用性。
 - 候选真伪由 `prefer run --rule github_accel` 在运行时用**真实 SNI + Host 请求**
-  判定：`validate_any_status` 放行非 5xx（并拒绝 `421 Misdirected Request` 这种
-  SNI/vhost 不匹配），连接失败/5xx 一律剔除。`genconfig` 渲染时前置实测 Top-N IP，
-  并与 handler 原上游去重合并。
+  判定：`validate_any_status` 放行非 5xx，但拒绝 `421 Misdirected Request` 与
+  **Location 跨主机的 3xx**（错误 vhost 会把请求重定向回别的站，如 `github.com`
+  边缘对 `api.github.com` 回 `301 → github.com/`），连接失败/5xx 一律剔除。
+  `genconfig` 渲染时前置实测 Top-N IP，并与 handler 原上游去重合并。
 - handler 的 `lb` 设 `try_duration: 10s` + `fail_duration: 30s`/`max_fails: 2`：
   某 pin 拨号超时/失败时 caddy 在 10s 内自动换下一个上游重试，连续失败 2 次则
   临时剔除该 pin 30s——多候选真正具备故障切换能力。
