@@ -102,10 +102,13 @@ type Prefer struct {
 	DownloadURL    string   `json:"download_url"`
 	// Validate 为 true 时，node 模式候选也用与真实链路一致的 SNI 做严格 2xx 校验，
 	// 淘汰对该域名返回 403/404 的边缘（如部分 Akamai 边缘对 cloudflare.steamstatic 拒绝）。
-	Validate     bool    `json:"validate,omitempty"`
-	ValidatePath string  `json:"validate_path,omitempty"`
-	MaxMbps      float64 `json:"max_mbps"`
-	TopN         int     `json:"top_n"`
+	Validate     bool   `json:"validate,omitempty"`
+	ValidatePath string `json:"validate_path,omitempty"`
+	// ValidateAnyStatus 为 true 时放宽校验：2xx/3xx/4xx 均算可达（仅拒 5xx/连接失败）。
+	// 用于根路径会返回 404 但确实能服务该域名的 GitHub 等任何站点。
+	ValidateAnyStatus bool    `json:"validate_any_status,omitempty"`
+	MaxMbps           float64 `json:"max_mbps"`
+	TopN              int     `json:"top_n"`
 }
 
 type Header struct {

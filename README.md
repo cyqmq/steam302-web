@@ -84,8 +84,11 @@
 ### 本仓库独有的增强
 
 - **GitHub 加速真实可用**：原版对本机只回"空 200"（其 caddy.json 无 github 站点），本仓库新增
-  `github_accel` 规则并**将 upstream 钉死为实测可达的节点 IP**，`api.github.com/zen`、github 页、
-  raw/avatars 均为真实内容。
+  `github_accel` 规则，`api.github.com/zen`、github 页、raw/avatars 均为真实内容。
+  上游为**多候选 + 自动优选**：`bin/fetchghip` 幂等重写 `prefer.candidates`
+  （固定种子 + GitHub 官方段过滤），`bin/prefer --rule github_accel` 实测择优后渲染为
+  Caddyfile 前置 IP，原 handler 上游保留兜底，任一 pin 失效由 caddy 健康检查剔除
+  （详见 `docs/RULES.md` §GitHub 域名优选）。
 - **systemd `Conflicts` 原子切换**：新版三单元与原版 `steam302.service` 互斥，`systemctl start`
   新版会自动停旧版，443/80 无缝交接，避免"劫持生效但 443 无人监听"的断网态。
 - **WebUI 分组开关 + 一键重渲染**：`/api/rules`、`/api/rules/{id}`、`/api/regen`。

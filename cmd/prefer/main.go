@@ -273,6 +273,7 @@ func probeSite(ruleID string, siteIdx int, site rules.Site, sp *rules.Prefer, op
 		if sp.ValidatePath != "" {
 			o.ValidatePath = sp.ValidatePath
 		}
+		o.ValidateAnyStatus = sp.ValidateAnyStatus
 	}
 	// node 模式默认不做 HTTP 校验：str/接入节点依赖 clash/TUN 与目标 SNI 透传，
 	// 用 host 校验会误杀可达节点（如 SNI 伪装不匹配）。仅凭 TCP 延迟排序。
@@ -287,6 +288,7 @@ func probeSite(ruleID string, siteIdx int, site rules.Site, sp *rules.Prefer, op
 		if sp.ValidatePath != "" {
 			o.ValidatePath = sp.ValidatePath
 		}
+		o.ValidateAnyStatus = sp.ValidateAnyStatus
 	}
 
 	candidates := sp.Candidates

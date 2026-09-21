@@ -66,6 +66,19 @@ func validateRelease(ips []string, results []Result, o *Options) {
 			client := &http.Client{
 				Transport: tr,
 				Timeout:   2 * time.Second,
+				// 跟随重定向时保持 Host 为校验域名：跨域 301（如 raw → github.com）
+				// 若被替换为 Location 主机名，会对源 IP 发到其他虚拟主机端口，误伤 5xx，
+				// 而 GitHub 边缘 Host=github.com 落在 raw IP 上大概率返回 500。
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					if len(via) >= 5 {
+						return http.ErrUseLastResponse
+					}
+					if o.ValidateAnyStatus {
+						return http.ErrUseLastResponse
+					}
+					req.Host = o.ValidateHost
+					return nil
+				},
 			}
 			defer client.CloseIdleConnections()
 			req, err := http.NewRequest(http.MethodGet, u, nil)

@@ -209,6 +209,8 @@ site 级配置（`config/rules/*.json` 的 `sites[].prefer`）：
 - `node` 模式默认不做下载测速（接入节点 / steamstatic 的 Akamai 上游不支持任意 SNI），
   按 TCP 延迟排序；规则显式 `"validate": true` 时才做域名校验（SNI 沿用 reverse_proxy
   的 `tls_server_name`，`{host}` 占位替换为 site 首个域名）。
+- `validate_any_status: true` 时校验**只认传输可达**（对 GitHub 这类对裸 IP + 外部
+  Host 可能回 30x/5xx 的边缘，任意应答状态都算可用），不走随遵从重定向的 2xx 判定。
 - `cidr`/`cf` 模式会以 site 首个域名为 Host、`validate_path` 为路径做一次"能返回 2xx
   才算可用"的校验（只认 2xx；403/5xx 一律丢弃），避免选到连不上该站点的边缘导致 502/403。
   能服务该域名的边缘可能只占少数，采样抽空会翻倍重试（24→48）。
@@ -239,6 +241,27 @@ providers 含 Akamai/Cloudflare/Fastly/CloudFront。更新方式：
 bin/fetchcdnips          # 拉取上游 resolved_ips.json 重写 config/cdn_ips.json
 bin/fetchcdnips /tmp/x   # 或写入自定义目录
 ```
+
+### GitHub 域名优选（`fetchghip`）
+
+`github_accel` 的 site 走 `mode: node` + `validate_any_status: true`
+（GitHub 边缘对 `raw/desktop` 等裸 IP + 错误 Host 会回 30x/5xx，认任意状态码即算
+可达，详见 §CDN 优选 `validate_any_status`）。候选来自固定种子
+（`seedByDomain`，GitHub 常用任意播边缘），避免 DNS 轮询造成规则文件每次抖动；
+curl/net 拉候选由 `cmd/fetchghip` 生产：
+
+```bash
+bin/fetchghip                # 重写 config/rules/github_accel.json 各 site 的 prefer.candidates（幂等）
+bin/fetchghip --root . --rule github_accel --dry-run   # 预览不落盘
+```
+
+- 种子仅保留落在 `githubMetaRanges`（185.199.108.0/22、140.82.112.0/20、
+  192.30.252.0/22、20.27.177.0/24、20.201.28.0/24、20.205.243.0/24）的地址，
+  剔除被污染的上游解析（如 gist 的 37.61.54.158——直接不写 prefer，交由 handler
+  上游 `ghgist.steam302.xyz` 兜底）。
+- `prefer run --rule github_accel` 对多候选实测择优，`genconfig` 渲染时前置
+  Top-N IP；原 handler 上游保留作 fallback，任一 pin 失效 caddy 健康检查自动剔除。
+- 更新种子后跑 `bin/fetchghip && bin/prefer run --rule github_accel && bin/apply`。
 
 ### steamstatic 家族段决策（2026-09）
 
