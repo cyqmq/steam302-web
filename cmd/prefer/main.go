@@ -127,8 +127,13 @@ func runPrefer(rootDir, cacheFile string, quick, debug bool, budget time.Duratio
 				if prev := prefEntry(entries, r.ID, i); prev != nil && len(prev.Ranked) > 0 {
 					oo := opts
 					oo.SpeedTest = false
-					if sp.Mode == "cf" && len(site.Hosts) > 0 {
-						oo.ValidateHost = site.Hosts[0]
+					if sp.Mode == "cf" || sp.Mode == "cidr" {
+						if len(site.Hosts) > 0 {
+							oo.ValidateHost = site.Hosts[0]
+						}
+						if sp.ValidatePath != "" {
+							oo.ValidatePath = sp.ValidatePath
+						}
 					}
 					rankIPs := make([]string, 0, len(prev.Ranked))
 					for _, x := range prev.Ranked {
@@ -168,6 +173,7 @@ func runPrefer(rootDir, cacheFile string, quick, debug bool, budget time.Duratio
 				fmt.Printf("[%s/site%d] 无可用节点\n", r.ID, i)
 				continue
 			}
+			entries = dropPreferEntry(entries, entry.RuleID, entry.SiteIndex)
 			entries = append(entries, *entry)
 			have[entryKey(entry.RuleID, entry.SiteIndex)] = true
 			show := []string{}
@@ -210,6 +216,20 @@ func dropPreferEntry(entries []prefer.Entry, ruleID string, siteIdx int) []prefe
 	return out
 }
 
+// handlerSNI 取该 site 首个 reverse_proxy handler 的 TLS SNI 伪装（可为空）。
+func handlerSNI(site rules.Site) string {
+	for _, h := range site.Handlers {
+		if h.Type != "reverse_proxy" {
+			continue
+		}
+		if h.Transport != nil && h.Transport.TLSServerName != "" {
+			return h.Transport.TLSServerName
+		}
+		return ""
+	}
+	return ""
+}
+
 type siteDiag struct {
 	Candidates int
 	Latency    int
@@ -245,10 +265,27 @@ func probeSite(ruleID string, siteIdx int, site rules.Site, sp *rules.Prefer, op
 		o.MaxMbps = sp.MaxMbps
 	}
 	o.Inflate()
-	if mode == "cf" {
-		// 校验这些 Anycast IP 是否真的能服务该 site 的域名（避免 502）
+	if mode == "cf" || mode == "cidr" {
+		// 校验这些 Anycast IP 是否真的能服务该 site 的域名（避免 502/403）
 		if len(site.Hosts) > 0 {
 			o.ValidateHost = site.Hosts[0]
+		}
+		if sp.ValidatePath != "" {
+			o.ValidatePath = sp.ValidatePath
+		}
+	}
+	// node 模式默认不做 HTTP 校验：str/接入节点依赖 clash/TUN 与目标 SNI 透传，
+	// 用 host 校验会误杀可达节点（如 SNI 伪装不匹配）。仅凭 TCP 延迟排序。
+	// 规则显式 prefer.validate=true 时改为严格校验（SNI 沿用 handler 伪装）。
+	if mode == "node" && sp.Validate {
+		if len(site.Hosts) > 0 {
+			o.ValidateHost = site.Hosts[0]
+			if sni := handlerSNI(site); sni != "" {
+				o.ValidateSNI = strings.ReplaceAll(sni, "{host}", site.Hosts[0])
+			}
+		}
+		if sp.ValidatePath != "" {
+			o.ValidatePath = sp.ValidatePath
 		}
 	}
 
@@ -269,21 +306,21 @@ func probeSite(ruleID string, siteIdx int, site rules.Site, sp *rules.Prefer, op
 	if len(candidates) == 0 && mode == "node" {
 		return nil, nil, fmt.Errorf("node 模式缺少候选")
 	}
-	if mode == "cf" && len(sp.CIDRs) == 0 {
-		return nil, nil, fmt.Errorf("cf 模式缺少 cidrs")
+	if (mode == "cf" || mode == "cidr") && len(sp.CIDRs) == 0 {
+		return nil, nil, fmt.Errorf("%s 模式缺少 cidrs", mode)
 	}
 
-	// cf 模式：能服务该域名的边缘只占少数，采样可能抽空。
-	// 抽空就加倍采样重试（最多 3 轮），确保稳定选出可用 IP。
+	// cf/cidr 模式：能服务该域名的边缘只占少数，采样可能抽空。
+	// 抽空就加倍采样重试（最多 2 轮），确保稳定选出可用 IP。
 	samples := o.SamplesPerCIDR
-	if mode == "cf" && samples < 8 {
+	if (mode == "cf" || mode == "cidr") && samples < 8 {
 		samples = 24
 	}
 	var diag *siteDiag
 	lastErr := error(nil)
 	for attempt := 0; attempt < 2; attempt++ {
 		if attempt > 0 {
-			samples *= 2 // 24 → 48；最多两轮，避免 2400 个 IP 的失控规模
+			samples *= 2 // 24 → 48；最多两轮，避免候选 IP 的失控规模
 		}
 		entry, d, err := probeSiteOnce(ruleID, siteIdx, site, sp, o, deadline, samples)
 		diag = d
@@ -297,12 +334,12 @@ func probeSite(ruleID string, siteIdx int, site rules.Site, sp *rules.Prefer, op
 		if entry != nil && len(entry.Ranked) > 0 {
 			return entry, diag, nil
 		}
-		if mode != "cf" {
+		if mode != "cf" && mode != "cidr" {
 			return nil, diag, nil
 		}
 	}
-	if mode == "cf" {
-		return nil, diag, fmt.Errorf("cf 采样仍无可用节点: %v", lastErr)
+	if mode == "cf" || mode == "cidr" {
+		return nil, diag, fmt.Errorf("%s 采样仍无可用节点: %v", mode, lastErr)
 	}
 	return nil, diag, nil
 }
@@ -312,8 +349,11 @@ func probeSiteOnce(ruleID string, siteIdx int, site rules.Site, sp *rules.Prefer
 	o := base
 	o.SamplesPerCIDR = samples
 	o.Inflate()
-	if mode == "cf" && len(site.Hosts) > 0 {
+	if (mode == "cf" || mode == "cidr") && len(site.Hosts) > 0 {
 		o.ValidateHost = site.Hosts[0]
+		if sp.ValidatePath != "" {
+			o.ValidatePath = sp.ValidatePath
+		}
 	}
 
 	candidates := sp.Candidates

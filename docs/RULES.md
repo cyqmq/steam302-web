@@ -162,23 +162,29 @@ site 级配置（`config/rules/*.json` 的 `sites[].prefer`）：
 
 ```json
 "prefer": {
-  "mode": "node",                     // node=接入节点/上游主机优选；cf=Cloudflare Anycast IP 优选
+  "mode": "node",                    // node=接入节点/上游主机优选；cidr=泛 IP 段优选；cf=兼容别名（同 cidr）
   "candidates": ["https://str001.steam302.xyz", "..."],  // node 模式候选（缺省取第一个 reverse_proxy 上游）
-  "cidrs": ["104.16.0.0/12", "..."],  // cf 模式：CF 官方段，随机采样
-  "samples_per_cidr": 24,             // 每段采样数（cf）
+  "cidrs": ["104.16.0.0/12", "..."], // cidr 模式：官方边缘段，随机采样
+  "samples_per_cidr": 24,            // 每段采样数（cidr）
   "top_n": 2,
-  "speed_test": true,                 // 是否下载测速
+  "validate_path": "/favicon.ico",   // cidr/cf 域名校验用 HTTP 路径（默认 /）
+  "speed_test": true,                // 是否下载测速
   "download_url": "https://speed.cloudflare.com/__down?bytes=8388608",
-  "max_mbps": 20                      // 测速带宽上限
+  "max_mbps": 20                     // 测速带宽上限
 }
 ```
 
 - 全局默认在 `env.json -> prefer`（`enabled/latency_timeout_ms/parallel/max_mbps/...`）。
-- `cf` 模式会以 site 首个域名为 SNI 做一次“真能服务该域名”的校验（能返回任何 HTTP 状态
-  才算可用），避免选到连不上该站点的边缘导致 502；并能服务该域名的边缘可能只有极少数，
-  采样抽空会翻倍重试（24→48）。`cf` 上游还会自动 `tls_insecure_skip_verify`
-  （steamstatic 的 Cloudflare 边缘证书 2025-10-01 过期，且客户端侧仍由本地 CA 全链路 MITM）。
-- `node` 模式默认不做下载测速（接入节点不支持任意 SNI），按延迟排序。
+- `node` 模式默认不做下载测速（接入节点 / steamstatic 的 Akamai 上游不支持任意 SNI），
+  按 TCP 延迟排序；规则显式 `"validate": true` 时才做域名校验（SNI 沿用 reverse_proxy
+  的 `tls_server_name`，`{host}` 占位替换为 site 首个域名）。
+- `cidr`/`cf` 模式会以 site 首个域名为 Host、`validate_path` 为路径做一次"能返回 2xx
+  才算可用"的校验（只认 2xx；403/5xx 一律丢弃），避免选到连不上该站点的边缘导致 502/403。
+  能服务该域名的边缘可能只占少数，采样抽空会翻倍重试（24→48）。
+  **cidr/cf 命中后只保留校验过的 pins**（原 Akamai/动态上游对 fastly/cloudflare 主机名
+  会返回 400 Invalid URL，故全数剔除），且自动补 `tls_insecure_skip_verify`。
+- 全量 `run` 用新结果**替换**同 `(rule_id, site_index)` 旧条目（不会叠加历史项，
+  否则 `Cache.Entry()` 会命中过时的旧 pin）。
 - 缓存写在 `config/prefer.json`（已 gitignore）。
 
 命令：
@@ -191,3 +197,28 @@ bin/prefer show | bin/prefer clear      # 查看 / 清除缓存
 
 systemd 的 caddy 单元 `ExecStartPre` 已挂 `prefer run --quick --timeout 12`，
 保证每次启动先用上一轮优选结果渲染（缺失项补齐），再生成 Caddyfile。
+
+### 官方 CDN 段库（`config/cdn_ips.json`）
+
+`cidr` 模式的 `cidrs` 建议引用这份官方段库（vendored 于 `config/cdn_ips.json`，
+来源 https://github.com/mansourjabin/cdn-ip-database，snapshot 2026-09-20），
+providers 含 Akamai/Cloudflare/Fastly/CloudFront。更新方式：
+
+```bash
+bin/fetchcdnips          # 拉取上游 resolved_ips.json 重写 config/cdn_ips.json
+bin/fetchcdnips /tmp/x   # 或写入自定义目录
+```
+
+### steamstatic 家族段决策（2026-09）
+
+- **Cloudflare 前缀**（`*.cloudflare.steamstatic.com`）：CF anycast 任何边缘对大陆 ip
+  一律 403；改为 `mode: node` 走 Steam 的 Akamai 边缘（`*.edgesuite.net` + dynamic），
+  由 `prefer` 优选出的 23.56.x/23.206.x 等可达 IP 前置，CDN 命中 200、未命中
+  301 canonical（`store.steamstatic.com` 等，已在 akamai 规则 hosts 收录）。
+- **Fastly 前缀**（`*.fastly.steamstatic.com`）：`mode: cidr` + Fastly 官方段 +
+  `validate_path: /store/home/gc_fan.webp`，边缘直接 200。
+- **Akamai 前缀与 corp 域名**（`store.steamstatic.com` 等）：`mode: node` 走
+  `*.edgesuite.net` 镜像，200。
+
+新签证书/加域名后需重跑 `bin/genpki --reset-leaf --root .` 让 leaf.pem 的 SAN
+覆盖新增主机名（`bin/apply` 只重生成 Caddyfile/hosts，不重签证书）。

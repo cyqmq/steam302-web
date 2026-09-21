@@ -12,7 +12,7 @@ import (
 //   - mode=node：解析 candidates 的主机名（可含 scheme/端口/路径，仅取 host）为 v4 IP，去重
 //   - mode=cf：  从 cidrs（Cloudflare 官方段）中随机采样，每段 samples 个
 func (o *Options) ResolveCandidates(mode string, candidates, cidrs []string, samples int) ([]string, error) {
-	if mode == "cf" {
+	if mode == "cf" || mode == "cidr" {
 		return o.CFSample(cidrs, samples)
 	}
 	var ips []string

@@ -90,7 +90,8 @@ type Site struct {
 
 // Prefer 为单个 site 开启 CDN 优选。mode：
 //   - "node": 候选为接入节点/上游主机，解析成 IP 后测速，Top-N 前置为 pins（tls_server_name 沿用 handler 的 SNI 伪装）
-//   - "cf":   候选为 Cloudflare Anycast 官方 IP 段（cidrs），随机采样后测速，Top-N 前置为 pins（SNI={host}）
+//   - "cf" / "cidr": 候选为 cidrs（Anycast 官方 IP 段，如 Cloudflare/Fastly），随机采样后测速，
+//     仅保留能对该域名返回 2xx 的边缘作为 Top-N pins（SNI={host}）
 type Prefer struct {
 	Mode           string   `json:"mode"`
 	Port           int      `json:"port"`
@@ -99,8 +100,12 @@ type Prefer struct {
 	SamplesPerCIDR int      `json:"samples_per_cidr"`
 	SpeedTest      *bool    `json:"speed_test"`
 	DownloadURL    string   `json:"download_url"`
-	MaxMbps        float64  `json:"max_mbps"`
-	TopN           int      `json:"top_n"`
+	// Validate 为 true 时，node 模式候选也用与真实链路一致的 SNI 做严格 2xx 校验，
+	// 淘汰对该域名返回 403/404 的边缘（如部分 Akamai 边缘对 cloudflare.steamstatic 拒绝）。
+	Validate     bool    `json:"validate,omitempty"`
+	ValidatePath string  `json:"validate_path,omitempty"`
+	MaxMbps      float64 `json:"max_mbps"`
+	TopN         int     `json:"top_n"`
 }
 
 type Header struct {

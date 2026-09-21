@@ -25,7 +25,7 @@ func Probe(ips []string, o *Options) []Result {
 	o.Inflate()
 	results := make([]Result, len(ips))
 	latency(ips, results, o)
-	if o.ValidateHost != "" {
+	if o.ValidateHost != "" && !(o.SkipValidateFakeIP && allFakeIPStrings(ips)) {
 		validateRelease(ips, results, o)
 	}
 	if o.SpeedTest {
@@ -35,8 +35,8 @@ func Probe(ips []string, o *Options) []Result {
 }
 
 // validateRelease 用 ValidateHost 作为 SNI 向候选 IP 发起一次忽略证书的 HTTPS
-// 请求；只要服务端返回任何 HTTP 状态（含 4xx/5xx）即视为该 IP 能服务该域名。
-// 连接或 TLS 握手失败则标记为不可用。
+// 请求；仅当服务端返回 2xx（200/304 等）才视为该 IP 真能服务该域名。
+// 403/5xx/连接失败等一律视为不可用，避免 CF 边缘对大陆 IP 的 403 被当作有效。
 func validateRelease(ips []string, results []Result, o *Options) {
 	var cand []int
 	for i, r := range results {
@@ -53,13 +53,13 @@ func validateRelease(ips []string, results []Result, o *Options) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			host := o.ValidateHost
-			u := fmt.Sprintf("https://%s/", host)
+			u := fmt.Sprintf("https://%s%s", host, o.ValidatePath)
 			tr := &http.Transport{
 				DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 					var d net.Dialer
 					return d.DialContext(ctx, "tcp", net.JoinHostPort(results[i].IP, fmt.Sprintf("%d", o.Port)))
 				},
-				TLSClientConfig:     &tls.Config{InsecureSkipVerify: true, ServerName: host},
+				TLSClientConfig:     &tls.Config{InsecureSkipVerify: true, ServerName: o.ValidateSNI},
 				DisableKeepAlives:   true,
 				MaxIdleConnsPerHost: 1,
 			}
@@ -81,7 +81,12 @@ func validateRelease(ips []string, results []Result, o *Options) {
 				return
 			}
 			resp.Body.Close()
-			if resp.StatusCode < 100 {
+			if o.ValidateAnyStatus {
+				// node 模式：放行 2xx/3xx/4xx（301/404 都算可达），仅拒 5xx/连接失败
+				if resp.StatusCode >= 500 {
+					results[i].OK = false
+				}
+			} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				results[i].OK = false
 			}
 		}(i)

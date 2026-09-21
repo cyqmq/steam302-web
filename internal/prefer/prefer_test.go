@@ -2,6 +2,7 @@ package prefer
 
 import (
 	"math/rand"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -125,5 +126,27 @@ func TestResolveCandidatesNode(t *testing.T) {
 	}
 	if len(ips) != 2 {
 		t.Fatalf("dedupe failed: %v", ips)
+	}
+}
+
+func TestAllFakeIP(t *testing.T) {
+	cases := []struct {
+		ips  []string
+		want bool
+	}{
+		{[]string{"198.18.0.19", "198.18.0.15"}, true},
+		{[]string{"198.18.1.200"}, true},
+		{[]string{"198.18.0.1", "23.49.104.59"}, false},
+		{[]string{"23.49.104.59"}, false},
+		{nil, false},
+	}
+	for _, c := range cases {
+		ips := make([]net.IP, 0, len(c.ips))
+		for _, s := range c.ips {
+			ips = append(ips, net.ParseIP(s))
+		}
+		if got := allFakeIP(ips); got != c.want {
+			t.Fatalf("allFakeIP(%v) = %v, want %v", c.ips, got, c.want)
+		}
 	}
 }

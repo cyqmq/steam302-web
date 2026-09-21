@@ -50,7 +50,8 @@
 | 启用 DNS 重定向模式 | 本仓库通过 **hosts 劫持**（本质即 DNS 重定向的一种落地）导通流量；**不**劫持 53/UDP，不提供 DNS over TCP 服务 |
 | 日志自动清除 | Caddy 日志进 journald（systemd 自动轮转）；`config/s302fwd.log` 按体积轮转（WebUI「设置」页可调 `fwd.log_max_bytes`，默认 5MB，超限改为 `.1`） |
 | 输出 DNS 重定向日志 | 未输出按域名请求日志；基础运行日志走 journald / s302fwd.log |
-| CDN 优选 | 已实现 `bin/prefer`（node=接入节点 / cf=Cloudflare 段抽样实测），systemd 启动前 `--quick` 补齐缓存并渲染为 Caddyfile 前置 IP；`speed_test` 时按下载速率排序，否则按延迟 |
+| CDN 优选 | 已实现 `bin/prefer`（node=接入节点 / Akamai 镜像、cidr/cf=官方段抽样实测），systemd 启动前 `--quick` 补齐缓存并渲染为 Caddyfile 前置 IP；cidr/cf 只保留经 2xx 域名校验的 pins，避免 403/502；`speed_test` 时按下载速率排序，否则按延迟 |
+| CDN 优选段库 | `config/cdn_ips.json` vendored 官方段（Akamai/Cloudflare/Fastly/CloudFront），`bin/fetchcdnips` 可拉取更新（详见 `docs/RULES.md`） |
 | 监听 IP / 测速限速 / 备份保留数量 | ✅ WebUI「设置」页：`listen.bind_ip`、`prefer.max_mbps`（当前 20）与并行/采样等数值、`hosts.backup_keep`（快照保留数，0=不清理） |
 | 开机自启 & 重置所有设置（恢复出厂） | ✅ WebUI「设置」页：开机自启开关（systemctl enable/disable 三服务）；「恢复出厂设置」＝ `bin/reset`（停服＋撤自启＋撤销 hosts 劫持＋清证书/生成物，**保留**规则与 env.json） |
 
@@ -89,7 +90,7 @@ config/
   rules/*.json       # 规则目录：每个文件=一条服务规则（steam/github/discord/youtube…）
   overrides.json     # WebUI 开关覆盖（运行时生成，gitignore）
   rules.schema.json  # 规则 JSON Schema
-cmd/                 # genconfig / genhosts / genpki / s302fwd / webui / apply
+cmd/                 # genconfig / genhosts / genpki / s302fwd / webui / apply / reset / prefer / fetchcdnips
 internal/            # rules / hosts / pki / fwd / webui
 deploy/              # install.sh · uninstall.sh · switch-back.sh · apply-hosts.sh
 web/files/           # file_server 型服务资源（youtube_iframe 占位，P0）
@@ -109,6 +110,8 @@ go build -o bin/s302fwd   ./cmd/s302fwd
 go build -o bin/webui     ./cmd/webui
 go build -o bin/apply     ./cmd/apply
 go build -o bin/reset     ./cmd/reset
+go build -o bin/prefer    ./cmd/prefer
+go build -o bin/fetchcdnips ./cmd/fetchcdnips
 
 # 1) 生成证书（自签 CA + 叶证书，SAN 覆盖规则域名）
 bin/genpki

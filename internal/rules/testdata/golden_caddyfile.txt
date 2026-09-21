@@ -217,7 +217,7 @@ reverse_proxy https://185.199.108.133 {
 }
 }
 
-https://steambroadcast.akamaized.net:25584 https://steambroadcastchat.akamaized.net:25584 https://steamvideo-a.akamaihd.net:25584 https://steamstore-a.akamaihd.net:25584 https://steamusercontent-a.akamaihd.net:25584 https://steamcommunity-a.akamaihd.net:25584 https://steamcdn-a.akamaihd.net:25584 https://steamuserimages-a.akamaihd.net:25584 https://community.akamai.steamstatic.com:25584 https://avatars.akamai.steamstatic.com:25584 https://community.steamstatic.com:25584 https://cdn.akamai.steamstatic.com:25584 https://avatars.steamstatic.com:25584 https://shared.akamai.steamstatic.com:25584 https://clan.akamai.steamstatic.com:25584 https://video.akamai.steamstatic.com:25584 https://client-update.akamai.steamstatic.com:25584 https://clientconfig.akamai.steamstatic.com:25584 https://clan.steamstatic.com:25584 https://shared.steamstatic.com:25584 https://images.akamai.steamusercontent.com:25584 https://images.steamusercontent.com:25584 https://cdn.akamai.steamusercontent.com:25584 {
+https://steambroadcast.akamaized.net:25584 https://steambroadcastchat.akamaized.net:25584 https://steamvideo-a.akamaihd.net:25584 https://steamstore-a.akamaihd.net:25584 https://steamusercontent-a.akamaihd.net:25584 https://steamcommunity-a.akamaihd.net:25584 https://steamcdn-a.akamaihd.net:25584 https://steamuserimages-a.akamaihd.net:25584 https://community.akamai.steamstatic.com:25584 https://avatars.akamai.steamstatic.com:25584 https://community.steamstatic.com:25584 https://cdn.akamai.steamstatic.com:25584 https://avatars.steamstatic.com:25584 https://store.steamstatic.com:25584 https://cdn.steamstatic.com:25584 https://shared.akamai.steamstatic.com:25584 https://clan.akamai.steamstatic.com:25584 https://video.akamai.steamstatic.com:25584 https://client-update.akamai.steamstatic.com:25584 https://clientconfig.akamai.steamstatic.com:25584 https://clan.steamstatic.com:25584 https://shared.steamstatic.com:25584 https://images.akamai.steamusercontent.com:25584 https://images.steamusercontent.com:25584 https://cdn.akamai.steamusercontent.com:25584 {
     tls config/certs/leaf.pem config/certs/leaf.key
     @preflight {
         method OPTIONS
@@ -264,11 +264,17 @@ https://cdn.cloudflare.steamstatic.com:25584 https://community.cloudflare.steams
         Access-Control-Request-Private-Network true
     }
 
-reverse_proxy https://stdns.dogfight360.com {
+reverse_proxy https://steamuserimages-a.akamaihd.net.edgesuite.net https://steamstore-a.akamaihd.net.edgesuite.net https://eaassets-a.akamaihd.net.edgesuite.net https://steamcommunity-a.akamaihd.net.edgesuite.net {
+    dynamic a steamuserimages-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamstore-a.akamaihd.net.edgesuite.net 443
+    dynamic a eaassets-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamcommunity-a.akamaihd.net.edgesuite.net 443
+    lb_policy random_choose 4
+    lb_try_duration 5s
     header_up Host {host}
     transport http {
         tls
-        tls_server_name {host}
+        tls_server_name img-s-msn-com.akamaized.net
     }
 }
 }

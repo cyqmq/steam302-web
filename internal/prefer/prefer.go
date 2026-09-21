@@ -53,6 +53,24 @@ type Options struct {
 	Rand         *rand.Rand
 	// ResolveFn 解析主机名 → IP 列表（默认 net.LookupIP），测试可注入。
 	ResolveFn func(host string) ([]string, error)
+
+	// ValidatePath 是 2xx 校验用的请求路径（默认 "/"）。
+	// 对没有根路由的 CDN 主机（如 Fastly 的 cdn.fastly.steamstatic.com），
+	// 需用真实资源路径，否则抽样边缘会在根路径上返回 404 被误判不可用。
+	ValidatePath string
+
+	// ValidateSNI 为校验连接使用的 TLS SNI（默认与 ValidateHost 相同）。
+	// node 模式会沿用 handler 的 SNI 伪装（如 img-s-msn），以复现真实链路。
+	ValidateSNI string
+
+	// ValidateAnyStatus 为 true 时，服务端返回 2xx/3xx/4xx 均视为"能服务该域名"
+	// （仅拒 5xx/连接失败）。用于 node 模式：放行 301/404 等可达边缘，仅淘汰 403/挂死。
+	ValidateAnyStatus bool
+
+	// SkipValidateFakeIP 为 true 时，若候选 IP 全部落在 198.18.0.0/15（本机
+	// clash fake-ip 段），跳过 validateRelease——这类地址经 TUN 走节点，无法做
+	// 真实链路校验，保持原有的"TCP 延迟即存活"判定。
+	SkipValidateFakeIP bool
 }
 
 // Inflate 用缺省值补齐零/负值字段。
@@ -91,6 +109,12 @@ func (o *Options) Inflate() {
 	if o.ResolveFn == nil {
 		o.ResolveFn = lookupIPv4
 	}
+	if o.ValidatePath == "" {
+		o.ValidatePath = "/"
+	}
+	if o.ValidateSNI == "" {
+		o.ValidateSNI = o.ValidateHost
+	}
 	if o.Rand == nil {
 		o.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 	}
@@ -98,9 +122,21 @@ func (o *Options) Inflate() {
 
 func lookupIPv4(host string) ([]string, error) {
 	ips, err := net.LookupIP(host)
+	if err == nil && !allFakeIP(ips) {
+		return v4OrFallback(ips), nil
+	}
+	// 本机 resolv.conf 若指向 clash/mihomo 且开启 fake-ip，解析结果全是 198.18.0.0/15
+	// 虚拟段（延迟无意义、开机无 clash 时不可达）。此时改用公共 DoH 取真实 CDN 边缘。
+	if real, derr := dohLookupIPv4(host); derr == nil && len(real) > 0 {
+		return real, nil
+	}
 	if err != nil {
 		return nil, err
 	}
+	return v4OrFallback(ips), nil
+}
+
+func v4OrFallback(ips []net.IP) []string {
 	var out []string
 	for _, ip := range ips {
 		if v4 := ip.To4(); v4 != nil {
@@ -112,5 +148,22 @@ func lookupIPv4(host string) ([]string, error) {
 			out = append(out, ip.String())
 		}
 	}
-	return out, nil
+	return out
+}
+
+// allFakeIP 判断全部 IP 位于 clash fake-ip 段 198.18.0.0/15。
+func allFakeIP(ips []net.IP) bool {
+	if len(ips) == 0 {
+		return false
+	}
+	for _, ip := range ips {
+		v4 := ip.To4()
+		if v4 == nil {
+			return false
+		}
+		if v4[0] != 198 || v4[1] != 18 {
+			return false
+		}
+	}
+	return true
 }

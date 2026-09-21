@@ -52,10 +52,21 @@ func TestGenerate(t *testing.T) {
 				t.Fatal("no rules loaded")
 			}
 			got := GenerateCaddyfile(env, rules, nil)
+			hosts := GenerateHosts(env, rules)
+			if os.Getenv("RUN_UPDATE_GOLDEN") == "1" {
+				dir := filepath.Join(root, "internal", "rules", "testdata")
+				for _, f := range []struct{ name, data string }{
+					{tc.goldenCaddy, got}, {tc.goldenHosts, hosts},
+				} {
+					if err := os.WriteFile(filepath.Join(dir, f.name), []byte(f.data), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return
+			}
 			if want := mustGolden(t, tc.goldenCaddy); got != want {
 				t.Errorf("Caddyfile mismatch with golden %s", tc.goldenCaddy)
 			}
-			hosts := GenerateHosts(env, rules)
 			if want := mustGolden(t, tc.goldenHosts); hosts != want {
 				t.Errorf("hosts mismatch with golden %s", tc.goldenHosts)
 			}

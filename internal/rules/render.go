@@ -311,7 +311,9 @@ func renderSite(site Site, env *Env, pref *prefer.Cache, ruleID string, siteIdx 
 }
 
 // applyPreferred 把优选结果对应的 IP 前置到该 site 的 reverse_proxy 上游，
-// 原上游保留作 fallback。cf 模式下若 handler 未配置 TLS/SNI，补上 {host} 伪装。
+// 原上游保留作 fallback（node/cf-cidr 模式下除外：cf/cidr 只保留校验过的 pins，
+// 因为 akamai/动态上游对 fastly/cloudflare 主机名会 400 Invalid URL）。
+// cf/cidr 模式下若 handler 未配置 TLS/SNI，补上 {host} 伪装。
 func applyPreferred(site Site, e *prefer.Entry) Site {
 	ups := make([]string, 0, len(e.Ranked))
 	for _, r := range e.Ranked {
@@ -325,11 +327,17 @@ func applyPreferred(site Site, e *prefer.Entry) Site {
 			combined = append(combined, ups...)
 			combined = append(combined, h2.Upstreams...)
 			h2.Upstreams = combined
-			if e.Mode == "cf" && (h2.Transport == nil || !h2.Transport.TLS) {
+			// cidr/cf 模式下 pins 是严格按该域名校验过的边缘；原 akamai/动态上游
+			// 对 fastly/cloudflare 主机名会 400（Invalid URL），故只保留 pins。
+			if e.Mode == "cf" || e.Mode == "cidr" {
+				h2.Upstreams = ups
+				h2.DynamicUpstreams = nil
+			}
+			if (e.Mode == "cf" || e.Mode == "cidr") && (h2.Transport == nil || !h2.Transport.TLS) {
 				h2.Transport = &Transport{TLS: true, TLSServerName: "{host}"}
 			}
-			// CF 上游边缘证书已过期（steamstatic 2025-10-01），跳过上游 TLS 校验保可用
-			if e.Mode == "cf" {
+			// 边缘上游证书与域名不匹配时跳过上游 TLS 校验保可用
+			if e.Mode == "cf" || e.Mode == "cidr" {
 				if h2.Transport == nil {
 					h2.Transport = &Transport{}
 				}

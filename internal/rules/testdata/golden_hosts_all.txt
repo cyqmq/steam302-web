@@ -36,6 +36,7 @@
 127.0.0.1 cdn.cloudflare.steamstatic.com #S302X
 127.0.0.1 cdn.discordapp.com #S302X
 127.0.0.1 cdn.fastly.steamstatic.com #S302X
+127.0.0.1 cdn.steamstatic.com #S302X
 127.0.0.1 central.github.com #S302X
 127.0.0.1 checkout.steampowered.com #S302X
 127.0.0.1 clan.akamai.steamstatic.com #S302X
@@ -182,6 +183,7 @@
 127.0.0.1 store.cloudflare.steamstatic.com #S302X
 127.0.0.1 store.fastly.steamstatic.com #S302X
 127.0.0.1 store.steampowered.com #S302X
+127.0.0.1 store.steamstatic.com #S302X
 127.0.0.1 streamkit.discord.com #S302X
 127.0.0.1 streamkit.discordapp.com #S302X
 127.0.0.1 support-dev.discord.com #S302X
