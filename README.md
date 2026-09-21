@@ -19,9 +19,17 @@
    │  自签 CA + 叶证书（SAN 覆盖全部规则域名）        │
    │  header_up Host {host} · UA 伪装 · SNI 还原      │
    ├─ reverse_proxy ─► str001-004.steam302.xyz （Steam 系）──► 真实 CDN
-   ├─ reverse_proxy ─► gh*.steam302.xyz （GitHub 系，钉死可达 IP）──► real GitHub
+   ├─ reverse_proxy ─► gh*.steam302.xyz （GitHub 系，多候选 + 优选 IP）──► real GitHub
    └──────────────────────────────────────────────────────────────」
 ```
+
+## 当前状态小结
+
+| 维度 | 结论 |
+| --- | --- |
+| 我们已实现 | 原版 Steamcommunity_302 的**机制全部移植**（hosts 劫持 + Caddy TLS MITM 反代 + 自签证书 + 80/443 转发），覆盖原版**绝大多数设置项**（见下表「已实现 ✅」），并新增 11 项专项规则（全默认关闭）、**真实可用的 GitHub 加速**、CDN/IP 自动优选（`prefer` + `fetchghip` + `fetchcdnips`）、本机 DNS 重定向（`dnsd`）、systemd 原子切换、WebUI 设置页 |
+| 还差什么 | **DNS 重定向模式的 IP 优选**未做（`dnsd` 只按域应答 `127.0.0.1`）、`youtube_iframe` 修复脚本仍是占位（P0）、`输出 DNS 重定向日志` 未输出按域名请求日志，**Windows 自动改代理 / 开发者弹窗 / 托盘**等 GUI 专属项服务端不适用 |
+| 比原版多了什么 | **GitHub 加速真实可用**（原版本机只回"空 200"）、`github` 系与 Steam 系 CDN 的**自动测速优选 + 多候选 failover**、WebUI 分组开关/编辑/一键应用、`s302fwd` 用户态转发 daemon、golden 双向校验防回归、`dnsd` 本机 DNS 重定向替代纯 hosts 劫持 |
 
 ## 功能对照总表（与原版 Steamcommunity_302 设置项逐条对照）
 
@@ -39,6 +47,9 @@
 | 证书有效期（如 10 年） | `bin/genpki --ca-years 10 --leaf-days 365` |
 | 上游域名（Steam 相关，可自建节点） | 规则文件 `upstreams[]` 覆盖 `env.json → upstream_defaults` 默认值 |
 | 用户自定义规则（列表查看） | WebUI `http://127.0.0.1:34902` 列出全部规则 + 启用状态 + 覆盖域名数 + 缺失文件；顶部「一键应用」经 `sudo -n bin/apply` 重生成 → 写 `/etc/hosts` → 重启服务 |
+| 用户自定义规则编辑器（铅笔图标）/ 域名黑名单 | ✅ WebUI 每条规则「✎ 编辑」直接改 JSON（校验后重生成）；顶部「域名黑名单」面板（`config/blacklist.json`，支持 `*.example.com`，命中域名不进 hosts 劫持走直连） |
+| 复制代理设置参数（剪贴板/PAC/环境变量） | ✅ WebUI「复制代理参数」面板：Hosts 劫持片段 / curl 验证命令 / PAC / 环境变量四种格式一键复制；PAC 为**白名单式**（仅被劫持域名走 HTTPS 代理、其余 DIRECT），黑名单域名天然被排除 |
+| 界面主题（亮/暗） | ✅ WebUI 顶部切换（CSS 变量 + localStorage 记忆，默认暗色） |
 | 查看使用教程 | 仓库内文档：`README` / `docs/RULES.md` / `docs/PORTING.md` |
 | Origin 游戏下载（HTTPS→HTTP） | `origin_dl` 规则（默认关）：origin-a.akamaihd.net 反代到 HTTP 流媒体边缘 |
 | Uplay 客户端更新防劫持 | `uplay_update` 规则（默认关）：static3.cdn.ubi.com 转回官方源 |
@@ -61,7 +72,7 @@
 | 启用 DNS 重定向模式 | 默认走 **hosts 劫持**；另提供轻量本机 DNS 重定向 `bin/dnsd`（`steam302-web-dnsd.service` 可选）：劫持域应答 `127.0.0.1`、其余域名转发上游（支持 `*.mod.io` 这类 hosts 无法表达的通配子域），监听 `127.0.0.1:53` UDP+TCP，带上游 TTL 缓存；需时将系统解析器指向 `127.0.0.1` 启用 |
 | 日志自动清除 | Caddy 日志进 journald（systemd 自动轮转）；`config/s302fwd.log` 按体积轮转（WebUI「设置」页可调 `fwd.log_max_bytes`，默认 5MB，超限改为 `.1`） |
 | 输出 DNS 重定向日志 | 未输出按域名请求日志；基础运行日志走 journald / s302fwd.log |
-| CDN 优选 | 已实现 `bin/prefer`（node=接入节点 / Akamai 镜像、cidr/cf=官方段抽样实测），systemd 启动前 `--quick` 补齐缓存并渲染为 Caddyfile 前置 IP；cidr/cf 只保留经 2xx 域名校验的 pins，避免 403/502；`speed_test` 时按下载速率排序，否则按延迟 |
+| CDN 优选 | 已实现 `bin/prefer`（node=接入节点 / Akamai 镜像、cidr/cf=官方段抽样实测），systemd 启动前 `--quick` 补齐缓存并渲染为 Caddyfile 前置 IP；cidr/cf 只保留经 2xx 域名校验的 pins，避免 403/502；`speed_test` 时按下载速率排序，否则按延迟；github 系站点由 `bin/fetchghip` 生成候选后走同一优选流程（见「本仓库独有的增强」） |
 | CDN 优选段库 | `config/cdn_ips.json` vendored 官方段（Akamai/Cloudflare/Fastly/CloudFront），`bin/fetchcdnips` 可拉取更新（详见 `docs/RULES.md`） |
 | 监听 IP / 测速限速 / 备份保留数量 | ✅ WebUI「设置」页：`listen.bind_ip`、`prefer.max_mbps`（当前 20）与并行/采样等数值、`hosts.backup_keep`（快照保留数，0=不清理） |
 | 开机自启 & 重置所有设置（恢复出厂） | ✅ WebUI「设置」页：开机自启开关（systemctl enable/disable 三服务）；「恢复出厂设置」＝ `bin/reset`（停服＋撤自启＋撤销 hosts 劫持＋清证书/生成物，**保留**规则与 env.json） |
@@ -70,12 +81,7 @@
 
 | 原版设置项 | 说明 |
 | --- | --- |
-| CDN 优选（Akamai/CF/Fastly 启动测速选最快） | ✅ `bin/prefer`；见上表"CDN 优选"行 |
-| 测速速率限制 | ❌（无测速，故无带宽限制） |
-| DNS 重定向 CDN 优选 | ❌ 依赖上面的 CDN 优选，未实现 |
-| 用户自定义规则编辑器（铅笔图标）/ 域名黑名单 | ✅ WebUI 每条规则「✎ 编辑」直接改 JSON（校验后重生成）；顶部「域名黑名单」面板（`config/blacklist.json`，支持 `*.example.com`，命中域名不进 hosts 劫持走直连） |
-| 复制代理设置参数（剪贴板/PAC/环境变量） | ✅ WebUI「复制代理参数」面板：Hosts 劫持片段 / curl 验证命令 / PAC / 环境变量四种格式一键复制；PAC 为**白名单式**（仅被劫持域名走 HTTPS 代理、其余 DIRECT），黑名单域名天然被排除 |
-| 界面主题（亮/暗） | ✅ WebUI 顶部切换（CSS 变量 + localStorage 记忆，默认暗色） |
+| DNS 重定向 CDN 优选 | ❌ 未实现（`bin/dnsd` 只按域应答 `127.0.0.1`，不做 IP 优选） |
 | 自动修改代理（Windows） | ⏹ 不适用：本仓库是 Linux 服务器端；Windows 客户端需自行配置系统代理/PAC |
 | 监听端口 & 代理模式（自动配代理联动） | ⏹ 服务端无"自动配置客户端代理"能力 |
 | 支持开发者弹窗（每周） | ⏹ GUI 专属，服务器端不适用 |
@@ -104,7 +110,7 @@ config/
   rules/*.json       # 规则目录：每个文件=一条服务规则（steam/github/discord/youtube…）
   overrides.json     # WebUI 开关覆盖（运行时生成，gitignore）
   rules.schema.json  # 规则 JSON Schema
-cmd/                 # genconfig / genhosts / genpki / s302fwd / webui / apply / reset / prefer / fetchcdnips / dnsd
+cmd/                 # genconfig / genhosts / genpki / s302fwd / webui / apply / reset / prefer / fetchghip / fetchcdnips / dnsd
 internal/            # rules / hosts / pki / fwd / webui
 deploy/              # install.sh · uninstall.sh · switch-back.sh · apply-hosts.sh
 web/files/           # file_server 型服务资源（youtube_iframe 占位，P0）
@@ -124,7 +130,8 @@ go build -o bin/s302fwd   ./cmd/s302fwd
 go build -o bin/webui     ./cmd/webui
 go build -o bin/apply     ./cmd/apply
 go build -o bin/reset     ./cmd/reset
-go build -o bin/prefer    ./cmd/prefer
+go build -o bin/prefer     ./cmd/prefer
+go build -o bin/fetchghip   ./cmd/fetchghip
 go build -o bin/fetchcdnips ./cmd/fetchcdnips
 go build -o bin/dnsd       ./cmd/dnsd
 
@@ -205,8 +212,9 @@ go test -race ./internal/fwd/
 ## 已知限制
 
 - `youtube_iframe` 的 `web/files/iframe/iframe_api*` 仍是占位（P0 待实现，见 `docs/RULES.md`）。
-- gist.github.com 与部分 github 节点在本机不可达（原版同）；次要 github 站点遇 502 时按
-  `docs/PORTING.md` §6 换可达节点。
+- gist.github.com 本机不可达（原版同）：`fetchghip` 自动剔除被污染的 gist 候选（不在 GitHub
+  官方段），交由 handler 上游 `ghgist.steam302.xyz` 兜底；次要 github 站点遇 502 时由
+  caddy 健康检查剔除失效 pin 自动切换（多候选 + 兜底上游）。
 - WebUI 无鉴权，仅绑 `127.0.0.1`；证书/`bin/`/运行时 hosts 不入库（见 `.gitignore`）。
 
 ## 许可
