@@ -160,6 +160,11 @@
       "type": "object",
       "description": "匹配条件（空/缺省 = 全部）。所有键逻辑 AND。",
       "properties": {
+        "expression": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Caddy CEL 表达式，如 {query}.contains(\"cdnOverride\")，逐条 AND"
+        },
         "path": { "type": "array", "items": { "type": "string" } },
         "method": { "type": "array", "items": { "type": "string" } },
         "not": {

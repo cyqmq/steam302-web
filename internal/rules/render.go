@@ -31,12 +31,18 @@ func renderMatch(idx int, m *Match) (name, block string) {
 	for _, mm := range m.Method {
 		b.WriteString("    method " + mm + "\n")
 	}
+	for _, ex := range m.Expression {
+		b.WriteString("    expression " + ex + "\n")
+	}
 	for _, n := range m.Not {
 		for _, p := range n.Path {
 			b.WriteString("    not path " + p + "\n")
 		}
 		for _, mm := range n.Method {
 			b.WriteString("    not method " + mm + "\n")
+		}
+		for _, ex := range n.Expression {
+			b.WriteString("    not expression " + ex + "\n")
 		}
 	}
 	b.WriteString("}")

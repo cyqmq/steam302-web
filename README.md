@@ -40,6 +40,17 @@
 | 上游域名（Steam 相关，可自建节点） | 规则文件 `upstreams[]` 覆盖 `env.json → upstream_defaults` 默认值 |
 | 用户自定义规则（列表查看） | WebUI `http://127.0.0.1:34902` 列出全部规则 + 启用状态 + 覆盖域名数 + 缺失文件；顶部「一键应用」经 `sudo -n bin/apply` 重生成 → 写 `/etc/hosts` → 重启服务 |
 | 查看使用教程 | 仓库内文档：`README` / `docs/RULES.md` / `docs/PORTING.md` |
+| Origin 游戏下载（HTTPS→HTTP） | `origin_dl` 规则（默认关）：origin-a.akamaihd.net 反代到 HTTP 流媒体边缘 |
+| Uplay 客户端更新防劫持 | `uplay_update` 规则（默认关）：static3.cdn.ubi.com 转回官方源 |
+| EA Desktop CDN 重定向 Akamai | `ea_desktop` 规则（默认关，支持 CEL `expression` 匹配）：downloadURL 追加 `cdnOverride=akamai` |
+| HB / Fanatical 图片 | `hb_fanatical_imgfix` 规则（默认关）：反代 imgix 官方 Fastly 边缘 |
+| Fandom 图片 | `fandom_imgfix` 规则（默认关）：wikia.nocookie.net 全子域反代官方源 |
+| OneDrive 网页版 | `onedrive_web` 规则（默认关）：主页 + skyapi 反代微软 edge IP 池 |
+| Blockbench | `blockbench` 规则（默认关）：官网反代其托管、web 编辑器走 ghps 节点 |
+| jsDelivr CDN | `jsdelivr` 规则（默认关）：反代官方 Fastly 边缘 |
+| CSGO(CS2) Demo 国转国际 | `csgo_demo_redir` 规则（默认关）：replay.csgo.com.cn 302 到官方国际节点 |
+| 辐射76 登录修复 | `fallout76_respond` 规则（默认关）：区域 httpping 端点本地应答 200 |
+| Xbox 云游戏 / 商店图片 | `xbox_cloud` 规则（默认关）：gssv-play-prod 跨区反代 + 商店图片反代 |
 
 ### 部分实现 ⚠️
 

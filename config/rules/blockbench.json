@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "blockbench",
+  "name": "Blockbench",
+  "group": "misc",
+  "description": "blockbench.net 本体反代到其托管（Netlify），web.blockbench.net 在线编辑器走 ghps 节点兜底。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["blockbench.net", "www.blockbench.net"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://www.netlify.com"],
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["web.blockbench.net"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://ghps.steam302.xyz"],
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

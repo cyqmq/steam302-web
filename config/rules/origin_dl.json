@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "origin_dl",
+  "name": "Origin 游戏下载（HTTPS→HTTP）",
+  "group": "game",
+  "description": "origin-a.akamaihd.net：反代到 HTTP 流媒体边缘绕过高昂 HTTPS 出口（原版专项，启用走直连）。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["origin-a.akamaihd.net"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "http://cctv4-lh.akamaihd.net",
+            "http://moviesok-i.akamaihd.net",
+            "http://vluki-a.akamaihd.net",
+            "http://hgtv-i.akamaihd.net",
+            "http://toots-a.akamaihd.net"
+          ],
+          "lb": { "policy": "random" },
+          "header_up": [
+            ["Host", "origin-a.akamaihd.net"],
+            ["X-Forwarded-For", null],
+            ["X-Real-IP", null]
+          ],
+          "header_down": [
+            ["X-Forwarded-For", null],
+            ["X-Real-IP", null]
+          ]
+        }
+      ]
+    }
+  ]
+}

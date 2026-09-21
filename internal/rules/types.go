@@ -130,14 +130,16 @@ type Handler struct {
 }
 
 type Match struct {
-	Path   []string   `json:"path"`
-	Method []string   `json:"method"`
-	Not    []NotMatch `json:"not"`
+	Path       []string   `json:"path"`
+	Method     []string   `json:"method"`
+	Expression []string   `json:"expression"`
+	Not        []NotMatch `json:"not"`
 }
 
 type NotMatch struct {
-	Path   []string `json:"path"`
-	Method []string `json:"method"`
+	Path       []string `json:"path"`
+	Method     []string `json:"method"`
+	Expression []string `json:"expression"`
 }
 
 type DynamicUpstream struct {

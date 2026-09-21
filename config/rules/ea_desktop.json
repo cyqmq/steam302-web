@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "ea_desktop",
+  "name": "EADesktop 下载 CDN 重定向 Akamai",
+  "group": "game",
+  "description": "api1.origin.com：downloadURL 请求未带 cdnOverride 时 rewrite 追加 cdnOverride=akamai，转发 api2.origin.com 走 Akamai CDN。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["api1.origin.com"],
+      "handlers": [
+        {
+          "type": "rewrite",
+          "match": {
+            "expression": [
+              "{path}.startsWith(\"/ecommerce2/downloadURL\")"
+            ],
+            "not": [
+              {
+                "expression": ["{uri}.contains(\"cdnOverride\")"]
+              }
+            ]
+          },
+          "rewrite": { "to": "/ecommerce2/downloadURL?{query}&cdnOverride=akamai" }
+        },
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://api2.origin.com"],
+          "transport": { "tls": true, "insecure_skip_verify": false },
+          "header_up": [["Host", "api1.origin.com"]]
+        }
+      ]
+    }
+  ]
+}

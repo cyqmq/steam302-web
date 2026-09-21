@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "jsdelivr",
+  "name": "jsDelivr CDN 加速",
+  "group": "image",
+  "description": "cdn.jsdelivr.net 反代到 jsDelivr 官方 Fastly 边缘，修复国内 jsDelivr 失效（前端依赖抢、npm 全球镜像）。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["cdn.jsdelivr.net"],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://jsdelivr.map.fastly.net"],
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

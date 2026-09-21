@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "hb_fanatical_imgfix",
+  "name": "HB / Fanatical 图片修复",
+  "group": "image",
+  "description": "hb.imgix.net / fanatical.imgix.net 反代到 imgix 官方 Fastly 边缘，修复 Humble Bundle / Fanatical 商店图片加载。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["hb.imgix.net", "fanatical.imgix.net"],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://imgix.map.fastly.net"],
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

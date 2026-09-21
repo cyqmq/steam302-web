@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "uplay_update",
+  "name": "Uplay 客户端更新防劫持",
+  "group": "game",
+  "description": "static3.cdn.ubi.com：国内运营商劫持 Uplay 更新域名，转回 Uplay 官方源 static.cdn.ubi.com。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["static3.cdn.ubi.com"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": ["https://static.cdn.ubi.com"],
+          "transport": { "tls": true, "tls_server_name": "static3.cdn.ubi.com", "insecure_skip_verify": true },
+          "header_up": [["Host", "static3.cdn.ubi.com"]]
+        }
+      ]
+    }
+  ]
+}

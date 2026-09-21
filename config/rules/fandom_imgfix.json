@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "fandom_imgfix",
+  "name": "Fandom 图片修复",
+  "group": "image",
+  "description": "wikia.nocookie.net 全部子域反代到 Fandom 官方 images.wikia.com / static.wikia.com，修复维基图片（如各游戏 wiki）加载。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": [
+        "static.wikia.nocookie.net",
+        "img.wikia.nocookie.net",
+        "img1.wikia.nocookie.net",
+        "img2.wikia.nocookie.net",
+        "img3.wikia.nocookie.net",
+        "img4.wikia.nocookie.net",
+        "img5.wikia.nocookie.net",
+        "images.wikia.nocookie.net",
+        "images1.wikia.nocookie.net",
+        "images2.wikia.nocookie.net",
+        "images3.wikia.nocookie.net",
+        "images4.wikia.nocookie.net",
+        "images5.wikia.nocookie.net",
+        "vignette.wikia.nocookie.net",
+        "vignette1.wikia.nocookie.net",
+        "vignette2.wikia.nocookie.net",
+        "vignette3.wikia.nocookie.net",
+        "vignette4.wikia.nocookie.net",
+        "vignette5.wikia.nocookie.net"
+      ],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://images.wikia.com",
+            "https://static.wikia.com"
+          ],
+          "lb": { "policy": "random" },
+          "transport": { "tls": true, "insecure_skip_verify": true },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

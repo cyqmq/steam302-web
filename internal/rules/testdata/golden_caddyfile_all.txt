@@ -4,6 +4,33 @@
     default_bind 127.0.0.1
 }
 
+https://blockbench.net:25584 https://www.blockbench.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://www.netlify.com {
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://web.blockbench.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://ghps.steam302.xyz {
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://replay.csgo.com.cn:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+redir https://replay.csgo.com{uri} permanent
+}
+
 https://discord.com:25584 https://updates.discord.com:25584 https://status.discord.com:25584 https://streamkit.discord.com:25584 https://feedback.discord.com:25584 https://click.discord.com:25584 https://pax.discord.com:25584 https://printer.discord.com:25584 https://ptb.discord.com:25584 https://canary.discord.com:25584 https://bugs.discord.com:25584 https://i18n.discord.com:25584 {
     tls config/certs/leaf.pem config/certs/leaf.key
     @preflight {
@@ -177,6 +204,54 @@ reverse_proxy https://supportds.steam302.xyz https://safetyds.steam302.xyz https
     header_up Host {host}
     transport http {
         tls
+    }
+}
+}
+
+https://api1.origin.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+@m0 {
+    expression {path}.startsWith("/ecommerce2/downloadURL")
+    not expression {uri}.contains("cdnOverride")
+}
+rewrite @m0 /ecommerce2/downloadURL?{query}&cdnOverride=akamai
+reverse_proxy https://api2.origin.com {
+    header_up Host api1.origin.com
+    transport http {
+        tls
+    }
+}
+}
+
+https://ap-southeast-2-prod-prodpc01-reg-httpping.p76prod.systems:25584 https://eu-central-1-prod-prodpc01-reg-httpping.p76prod.systems:25584 https://eu-west-1-prod-prodpc01-reg-httpping.p76prod.systems:25584 https://us-east-1-prod-prodpc01-reg-httpping.p76prod.systems:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+respond 200 {
+        close
+    }
+}
+
+https://static.wikia.nocookie.net:25584 https://img.wikia.nocookie.net:25584 https://img1.wikia.nocookie.net:25584 https://img2.wikia.nocookie.net:25584 https://img3.wikia.nocookie.net:25584 https://img4.wikia.nocookie.net:25584 https://img5.wikia.nocookie.net:25584 https://images.wikia.nocookie.net:25584 https://images1.wikia.nocookie.net:25584 https://images2.wikia.nocookie.net:25584 https://images3.wikia.nocookie.net:25584 https://images4.wikia.nocookie.net:25584 https://images5.wikia.nocookie.net:25584 https://vignette.wikia.nocookie.net:25584 https://vignette1.wikia.nocookie.net:25584 https://vignette2.wikia.nocookie.net:25584 https://vignette3.wikia.nocookie.net:25584 https://vignette4.wikia.nocookie.net:25584 https://vignette5.wikia.nocookie.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://images.wikia.com https://static.wikia.com {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
     }
 }
 }
@@ -415,6 +490,56 @@ reverse_proxy https://google.com {
 }
 }
 
+https://hb.imgix.net:25584 https://fanatical.imgix.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://imgix.map.fastly.net {
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://cdn.jsdelivr.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://jsdelivr.map.fastly.net {
+    header_up Host {host}
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
 https://mod.io:25584 https://*.mod.io:25584 https://*.old.mod.io:25584 {
     tls config/certs/leaf.pem config/certs/leaf.key
 @m0 {
@@ -450,6 +575,42 @@ reverse_proxy https://binary.modcdn.io {
     transport http {
         tls
     }
+}
+}
+
+https://onedrive.live.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://13.107.42.13 {
+    header_up Host onedrive.live.com
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://skyapi.onedrive.live.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://131.253.14.227 https://131.253.14.229 https://40.90.136.179 https://13.105.28.48 https://40.90.136.180 https://157.55.109.228 https://40.90.136.163 https://131.253.14.230 https://40.90.128.17 https://40.90.142.226 https://13.105.28.32 https://104.44.88.24 {
+    lb_policy random_choose 6
+    lb_try_duration 5s
+    header_up Host skyapi.onedrive.live.com
+    transport http {
+        tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://origin-a.akamaihd.net:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy http://cctv4-lh.akamaihd.net http://moviesok-i.akamaihd.net http://vluki-a.akamaihd.net http://hgtv-i.akamaihd.net http://toots-a.akamaihd.net {
+    lb_policy random
+    header_up Host origin-a.akamaihd.net
+    header_up -X-Forwarded-For
+    header_up -X-Real-IP
+    header_down -X-Forwarded-For
+    header_down -X-Real-IP
 }
 }
 
@@ -994,6 +1155,75 @@ reverse_proxy https://e9221.i.akamaiedge.net {
     transport http {
         tls
         tls_insecure_skip_verify
+    }
+}
+}
+
+https://static3.cdn.ubi.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://static.cdn.ubi.com {
+    header_up Host static3.cdn.ubi.com
+    transport http {
+        tls
+        tls_server_name static3.cdn.ubi.com
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://xgpuweb.gssv-play-prod.xboxlive.com:25584 https://xgpuwebf2p.gssv-play-prod.xboxlive.com:25584 https://xhome.gssv-play-prod.xboxlive.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://xgpuweb-gssv-play-prod.azurefd.net https://hosts.ckr-gssv-rte-prod.azurewebsites.net https://xhome-gssv-play-prod.azurefd.net {
+    lb_policy random
+    lb_try_duration 5s
+    header_up Host {host}
+    header_up X-Forwarded-For 13.104.104.104
+    transport http {
+        tls
+        tls_server_name {host}
+    }
+}
+}
+
+https://xsts.auth.xboxlive.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://str001.steam302.xyz https://str002.steam302.xyz https://str003.steam302.xyz {
+    lb_policy random
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name xsts.auth.xboxlive.com
+    }
+}
+}
+
+https://images-eds.xboxlive.com:25584 https://store-images.s-microsoft.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+    @preflight {
+        method OPTIONS
+    }
+    respond @preflight 204
+    header {
+        defer
+        Access-Control-Allow-Origin {http.request.header.Origin}
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        Access-Control-Allow-Private-Network true
+        Access-Control-Request-Private-Network true
+    }
+
+reverse_proxy https://steamuserimages-a.akamaihd.net.edgesuite.net https://steamstore-a.akamaihd.net.edgesuite.net https://eaassets-a.akamaihd.net.edgesuite.net https://steamcommunity-a.akamaihd.net.edgesuite.net {
+    dynamic a steamuserimages-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamstore-a.akamaihd.net.edgesuite.net 443
+    dynamic a eaassets-a.akamaihd.net.edgesuite.net 443
+    dynamic a steamcommunity-a.akamaihd.net.edgesuite.net 443
+    lb_policy random_choose 4
+    lb_try_duration 5s
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name img-s-msn-com.akamaized.net
     }
 }
 }

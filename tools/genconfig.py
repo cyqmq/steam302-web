@@ -64,11 +64,15 @@ def render_match(idx, match):
         lines.append(f"    path {p}")
     for m in match.get("method", []):
         lines.append(f"    method {m}")
+    for ex in match.get("expression", []):
+        lines.append(f"    expression {ex}")
     for notm in match.get("not", []):
         for p in notm.get("path", []):
             lines.append(f"    not path {p}")
         for m in notm.get("method", []):
             lines.append(f"    not method {m}")
+        for ex in notm.get("expression", []):
+            lines.append(f"    not expression {ex}")
     block = f"@{name} {{\n" + "\n".join(lines) + "\n}"
     return name, block
 

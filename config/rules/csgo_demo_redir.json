@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "csgo_demo_redir",
+  "name": "CSGO(CS2) Demo 录播国区转国际",
+  "group": "game",
+  "description": "replay.csgo.com.cn 国区 Demo 节点转国际节点：302 到 replay.csgo.com 官方，避免国区节点失败/超时。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["replay.csgo.com.cn"],
+      "handlers": [
+        {
+          "type": "redir",
+          "redir": { "to": "https://replay.csgo.com{uri}", "permanent": true }
+        }
+      ]
+    }
+  ]
+}

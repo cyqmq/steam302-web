@@ -52,11 +52,16 @@ internal/webui/       # WebUI HTTP 服务 + 内嵌前端
   - `transport`：`{ "tls": true, "tls_server_name": "..." }` SNI 伪装
   - `lb`：`{ "policy": "random_choose", "count": N, ... }`
   - `header_up[]`：`[name, value]`、`[name, null]`（删除）、`[name, pattern, value]`（正则替换，如 UA）
-  - `match`：`{ "path": [...], "uri": [...] }` 命中才走该上游；无 `match` 为兜底
+  - `match`：`{ "path": [...], "method": [...], "expression": [...] }` 命中才走该上游；
+    `expression` 为 Caddy CEL（逐条 AND，可用 `{uri}`/`{path}`/`{query}` 等占位符）；
+    `not: [{ "expression": [...] }]` 排除；无 `match` 为兜底
 - `{ "type": "respond" }`
-  - `match` + `body` / `close`；可带 `status`，可用于空回落（劫持 `api.github.com`)
+  - `match` + `body` / `close`；可带 `status`，可用于空回落（劫持 `api.github.com`、
+    辐射76 的 `p76prod.systems` httpping 端点本地应答 200）
 - `{ "type": "file_server" }`：`root`（相对 `web/`），如 YouTube iframe 脚本
-- `{ "type": "redir" }` / `{ "type": "rewrite" }`
+- `{ "type": "redir" }` / `{ "type": "rewrite" }`：如 EADesktop
+  `rewrite /ecommerce2/downloadURL?{query}&cdnOverride=akamai`、CSGO Demo 国转国际
+  `redir https://replay.csgo.com{uri} permanent`
 
 Handler 的 `match` 未命中时自动落到下一个 handler；所有站点自动插入
 `method OPTIONS → 204`（PNA-CORS 预检）与 `Access-Control-Allow-*` 头。

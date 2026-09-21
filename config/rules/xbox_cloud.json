@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "id": "xbox_cloud",
+  "name": "Xbox 云游戏 / 商店图片",
+  "group": "game",
+  "description": "Xbox Cloud Gaming（xCloud）跨区：gssv-play-prod 各端点反代日本 Azure 边缘；商店图片反代微软官方源。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": [
+        "xgpuweb.gssv-play-prod.xboxlive.com",
+        "xgpuwebf2p.gssv-play-prod.xboxlive.com",
+        "xhome.gssv-play-prod.xboxlive.com"
+      ],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://xgpuweb-gssv-play-prod.azurefd.net",
+            "https://hosts.ckr-gssv-rte-prod.azurewebsites.net",
+            "https://xhome-gssv-play-prod.azurefd.net"
+          ],
+          "lb": { "policy": "random", "try_duration": "5s" },
+          "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": false },
+          "header_up": [
+            ["Host", "{host}"],
+            ["X-Forwarded-For", "13.104.104.104"]
+          ]
+        }
+      ]
+    },
+    {
+      "hosts": ["xsts.auth.xboxlive.com"],
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://str001.steam302.xyz",
+            "https://str002.steam302.xyz",
+            "https://str003.steam302.xyz"
+          ],
+          "lb": { "policy": "random" },
+          "transport": { "tls": true, "tls_server_name": "xsts.auth.xboxlive.com", "insecure_skip_verify": false },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    },
+    {
+      "hosts": ["images-eds.xboxlive.com", "store-images.s-microsoft.com"],
+      "pna_cors": true,
+      "handlers": [
+        {
+          "type": "reverse_proxy",
+          "upstreams": [
+            "https://steamuserimages-a.akamaihd.net.edgesuite.net",
+            "https://steamstore-a.akamaihd.net.edgesuite.net",
+            "https://eaassets-a.akamaihd.net.edgesuite.net",
+            "https://steamcommunity-a.akamaihd.net.edgesuite.net"
+          ],
+          "dynamic_upstreams": [
+            { "dns": "a", "host": "steamuserimages-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamstore-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "eaassets-a.akamaihd.net.edgesuite.net", "port": 443 },
+            { "dns": "a", "host": "steamcommunity-a.akamaihd.net.edgesuite.net", "port": 443 }
+          ],
+          "lb": { "policy": "random_choose", "choose": 4, "try_duration": "5s" },
+          "transport": { "tls": true, "tls_server_name": "img-s-msn-com.akamaized.net", "insecure_skip_verify": false },
+          "header_up": [["Host", "{host}"]]
+        }
+      ]
+    }
+  ]
+}

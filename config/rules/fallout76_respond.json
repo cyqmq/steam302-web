@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "fallout76_respond",
+  "name": "辐射76 登录修复",
+  "group": "game",
+  "description": "p76prod.systems 区域 httpping 端点被公网阻断时登录失败：本地直接应答 200，恢复辐射76 登录。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": [
+        "ap-southeast-2-prod-prodpc01-reg-httpping.p76prod.systems",
+        "eu-central-1-prod-prodpc01-reg-httpping.p76prod.systems",
+        "eu-west-1-prod-prodpc01-reg-httpping.p76prod.systems",
+        "us-east-1-prod-prodpc01-reg-httpping.p76prod.systems"
+      ],
+      "handlers": [
+        {
+          "type": "respond",
+          "respond": { "status": 200, "close": true }
+        }
+      ]
+    }
+  ]
+}
