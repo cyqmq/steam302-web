@@ -269,7 +269,9 @@ bin/fetchghip --root . --rule github_accel --dry-run   # 预览不落盘
   `genconfig` 渲染时前置实测 Top-N IP，并与 handler 原上游去重合并。
 - handler 的 `lb` 设 `try_duration: 10s` + `fail_duration: 30s`/`max_fails: 2`：
   某 pin 拨号超时/失败时 caddy 在 10s 内自动换下一个上游重试，连续失败 2 次则
-  临时剔除该 pin 30s——多候选真正具备故障切换能力。
+  临时剔除该 pin 30s——多候选真正具备故障切换能力。`transport` 另设
+  `dial_timeout: 3s`：死 peer（SYN 无响应）不再按默认 10s 长挂，3s 即失败并触发
+  切换，避免"静态上游恰好不可达"时约一半请求被拖到 20s 超时（502/000）。
 - 因此 gist 等本机不可达域名：候选（如 GitHub520 的 `203.98.7.65`）会被 prefer
   实测剔除，不写 pin；无 pin 时回退 handler 上游 `ghgist.steam302.xyz` 兜底。
 - 更新种子后跑 `bin/fetchghip && bin/prefer run --rule github_accel && bin/apply`。

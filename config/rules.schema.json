@@ -294,6 +294,10 @@
             },
             "insecure_skip_verify": {
               "type": "boolean"
+            },
+            "dial_timeout": {
+              "type": "string",
+              "description": "连接上游超时（如 3s）：死 peer 快速失败，配合 lb_try_duration 触发切换"
             }
           }
         },

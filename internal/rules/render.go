@@ -104,6 +104,9 @@ func renderTransport(t *Transport) string {
 	if t.InsecureSkipVerify {
 		lines = append(lines, "        tls_insecure_skip_verify")
 	}
+	if t.DialTimeout != "" {
+		lines = append(lines, "        dial_timeout "+t.DialTimeout)
+	}
 	lines = append(lines, "    }")
 	return strings.Join(lines, "\n")
 }

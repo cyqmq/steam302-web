@@ -16,6 +16,7 @@ reverse_proxy https://20.205.243.166 {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }
@@ -32,6 +33,7 @@ reverse_proxy https://ghgist.steam302.xyz {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }
@@ -48,6 +50,7 @@ reverse_proxy https://20.27.177.116 {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }
@@ -78,6 +81,7 @@ reverse_proxy https://185.199.109.133 {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }
@@ -108,6 +112,7 @@ reverse_proxy https://185.199.109.153 {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }
@@ -138,6 +143,7 @@ reverse_proxy https://185.199.109.154 {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }
@@ -168,6 +174,7 @@ reverse_proxy https://20.205.243.165 {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }
@@ -184,6 +191,7 @@ reverse_proxy https://185.199.108.153 {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }
@@ -214,6 +222,7 @@ reverse_proxy https://185.199.110.153 {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }
@@ -230,6 +239,7 @@ reverse_proxy https://gh140.steam302.xyz {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }
@@ -246,6 +256,7 @@ reverse_proxy https://185.199.108.133 {
         tls
         tls_server_name {host}
         tls_insecure_skip_verify
+        dial_timeout 3s
     }
 }
 }

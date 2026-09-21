@@ -165,6 +165,7 @@ type Transport struct {
 	TLS                bool   `json:"tls"`
 	TLSServerName      string `json:"tls_server_name"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify"`
+	DialTimeout        string `json:"dial_timeout,omitempty"`
 }
 
 type FileServer struct {
