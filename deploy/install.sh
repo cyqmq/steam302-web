@@ -20,7 +20,7 @@ echo "caddy:      $CADDY_BIN"
 
 # 确保二进制齐全（缺则构建）
 export PATH="$PATH:/usr/local/go/bin"
-for b in genconfig genhosts genpki s302fwd webui prefer; do
+for b in genconfig genhosts genpki s302fwd webui prefer dnsd; do
   if [[ ! -x "$ROOT/bin/$b" ]]; then
     echo "缺少 bin/$b，正在构建..."
     (cd "$ROOT" && go build -o "bin/$b" "./cmd/$b")
@@ -89,16 +89,39 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
+# 可选：本机 DNS 重定向模式。默认不启动（不劫持系统解析器）；
+# 需要时显式 enable，并把系统 resolver 指向 127.0.0.1。
+cat > "$UNIT_DIR/steam302-web-dnsd.service" <<EOF
+[Unit]
+Description=steam302-web local DNS redirect (S302 -> 127.0.0.1, others forward)
+After=network-online.target
+Wants=network-online.target
+Conflicts=steam302.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$ROOT
+ExecStart=$ROOT/bin/dnsd run --root $ROOT --listen 127.0.0.1:53
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 systemctl daemon-reload
 echo
 echo "已安装:"
 echo "  steam302-web-caddy.service  (MITM 反代, 监听 24196/25584)"
 echo "  steam302-web-fwd.service    (80/443 转发到 24196/25584)"
 echo "  steam302-web-webui.service  (管理台 http://127.0.0.1:34902)"
+echo "  steam302-web-dnsd.service   (可选, 本机 DNS 重定向 127.0.0.1:53, 未启动)"
 echo
 echo "使用:"
 echo "  切到新版(自动停原版):  sudo systemctl start steam302-web-caddy steam302-web-fwd && sudo bash deploy/apply-hosts.sh"
 echo "  设开机自启(只启新家族): sudo systemctl enable steam302-web-caddy steam302-web-fwd steam302-web-webui"
+echo "  启用 DNS 重定向:       sudo systemctl enable --now steam302-web-dnsd && 将系统解析器指向 127.0.0.1"
 echo "  切回原版:               sudo bash deploy/switch-back.sh"
 echo
 echo "注意: 原版与新版的 systemd 单元互相 Conflicts，两边不能同时 enable。"

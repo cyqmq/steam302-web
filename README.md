@@ -47,7 +47,7 @@
 | --- | --- |
 | 重置根证书 / 重置网站证书（分开重置） | ✅ WebUI「设置」页按钮（内部 `genpki --reset-root`/`--reset-leaf`，重置后自动重载）；CLI 亦可 |
 | 证书有效期 | ✅ WebUI「设置」页可改 CA 年数/叶天数（写 `env.json → cert.ca_years/leaf_days`，genpki 未带 flag 时读之；默认 10 年 / 365 天）|
-| 启用 DNS 重定向模式 | 本仓库通过 **hosts 劫持**（本质即 DNS 重定向的一种落地）导通流量；**不**劫持 53/UDP，不提供 DNS over TCP 服务 |
+| 启用 DNS 重定向模式 | 默认走 **hosts 劫持**；另提供轻量本机 DNS 重定向 `bin/dnsd`（`steam302-web-dnsd.service` 可选）：劫持域应答 `127.0.0.1`、其余域名转发上游（支持 `*.mod.io` 这类 hosts 无法表达的通配子域），监听 `127.0.0.1:53` UDP+TCP，带上游 TTL 缓存；需时将系统解析器指向 `127.0.0.1` 启用 |
 | 日志自动清除 | Caddy 日志进 journald（systemd 自动轮转）；`config/s302fwd.log` 按体积轮转（WebUI「设置」页可调 `fwd.log_max_bytes`，默认 5MB，超限改为 `.1`） |
 | 输出 DNS 重定向日志 | 未输出按域名请求日志；基础运行日志走 journald / s302fwd.log |
 | CDN 优选 | 已实现 `bin/prefer`（node=接入节点 / Akamai 镜像、cidr/cf=官方段抽样实测），systemd 启动前 `--quick` 补齐缓存并渲染为 Caddyfile 前置 IP；cidr/cf 只保留经 2xx 域名校验的 pins，避免 403/502；`speed_test` 时按下载速率排序，否则按延迟 |
@@ -90,7 +90,7 @@ config/
   rules/*.json       # 规则目录：每个文件=一条服务规则（steam/github/discord/youtube…）
   overrides.json     # WebUI 开关覆盖（运行时生成，gitignore）
   rules.schema.json  # 规则 JSON Schema
-cmd/                 # genconfig / genhosts / genpki / s302fwd / webui / apply / reset / prefer / fetchcdnips
+cmd/                 # genconfig / genhosts / genpki / s302fwd / webui / apply / reset / prefer / fetchcdnips / dnsd
 internal/            # rules / hosts / pki / fwd / webui
 deploy/              # install.sh · uninstall.sh · switch-back.sh · apply-hosts.sh
 web/files/           # file_server 型服务资源（youtube_iframe 占位，P0）
@@ -112,6 +112,7 @@ go build -o bin/apply     ./cmd/apply
 go build -o bin/reset     ./cmd/reset
 go build -o bin/prefer    ./cmd/prefer
 go build -o bin/fetchcdnips ./cmd/fetchcdnips
+go build -o bin/dnsd       ./cmd/dnsd
 
 # 1) 生成证书（自签 CA + 叶证书，SAN 覆盖规则域名）
 bin/genpki

@@ -146,6 +146,32 @@ WebUI 每条规则卡片的「✎ 编辑」可查看/修改该规则的原始 JS
   `env.json -> cert` 指针已指向这里。
 - 监听仅绑 `127.0.0.1`，与 steam302 一致（真实部署建议结合防火墙）。
 
+## DNS 重定向模式（`dnsd`）
+
+默认用 **hosts 劫持**（`bin/genhosts`/`deploy/apply-hosts.sh`）导通流量；如需按域
+的 DNS 应答（例如 hosts 无法表达的 `*.mod.io` 这类**通配子域**），可用
+`bin/dnsd` 起一个本机 DNS 重定向器：
+
+```
+go build -o bin/dnsd ./cmd/dnsd
+bin/dnsd --root . --listen 127.0.0.1:53        # UDP + TCP
+```
+
+- 劫持域集合与 hosts 完全同源：`config/rules/*.json` 的 `site.hosts`（含
+  `*.mod.io` 通配，DNS 语义下按后缀匹配子域）＋ `config/blacklist.json` 剔除
+  （`FilterBlacklist`）；域名变化无需重启参数——随规则文件生效。
+- 劫持域应答：`A → 127.0.0.1`（短 TTL，默认 600s，`--ttl`/`--answer` 可调），
+  其余类型（含 AAAA/HTTPS/SVCB）回 **NoError 空**，促使客户端回落 A 查询落到
+  本机地址。
+- 非劫持域转发上游：默认读 `/etc/resolv.conf` 的 nameserver（缺省回退
+  `223.5.5.5`/`119.29.29.29`），`--upstream` 可覆盖；带 TTL 缓存 +
+  UDP 截断自动回退 TCP。
+- 单独 `steam302-web-dnsd.service` 单元（`deploy/install.sh` 生成，默认**不**
+  启动）：需要时 `systemctl enable --now steam302-web-dnsd`，再把系统解析器
+  （`/etc/resolv.conf` / NetworkManager / systemd-resolved）指向 `127.0.0.1`
+  （search 域保留）。不启动不影响 hosts 劫持模式。
+- 依赖：`github.com/miekg/dns`（唯一新增第三方库）。
+
 ## systemd 托管与新旧切换
 
 三个单元：`steam302-web-caddy` / `steam302-web-fwd` / `steam302-web-webui`
