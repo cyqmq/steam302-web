@@ -210,7 +210,8 @@ site 级配置（`config/rules/*.json` 的 `sites[].prefer`）：
   按 TCP 延迟排序；规则显式 `"validate": true` 时才做域名校验（SNI 沿用 reverse_proxy
   的 `tls_server_name`，`{host}` 占位替换为 site 首个域名）。
 - `validate_any_status: true` 时校验**只认传输可达**（对 GitHub 这类对裸 IP + 外部
-  Host 可能回 30x/5xx 的边缘，任意应答状态都算可用），不走随遵从重定向的 2xx 判定。
+  Host 可能回 30x/4xx 的边缘，任意非 5xx 应答状态都算可用），不走随遵从重定向的 2xx
+  判定；仍拒绝 5xx 与 `421 Misdirected Request`（SNI/vhost 不匹配的规范状态码）。
 - `cidr`/`cf` 模式会以 site 首个域名为 Host、`validate_path` 为路径做一次"能返回 2xx
   才算可用"的校验（只认 2xx；403/5xx 一律丢弃），避免选到连不上该站点的边缘导致 502/403。
   能服务该域名的边缘可能只占少数，采样抽空会翻倍重试（24→48）。
@@ -245,22 +246,29 @@ bin/fetchcdnips /tmp/x   # 或写入自定义目录
 ### GitHub 域名优选（`fetchghip`）
 
 `github_accel` 的 site 走 `mode: node` + `validate_any_status: true`
-（GitHub 边缘对 `raw/desktop` 等裸 IP + 错误 Host 会回 30x/5xx，认任意状态码即算
-可达，详见 §CDN 优选 `validate_any_status`）。候选来自固定种子
-（`seedByDomain`，GitHub 常用任意播边缘），避免 DNS 轮询造成规则文件每次抖动；
-curl/net 拉候选由 `cmd/fetchghip` 生产：
+（GitHub 边缘对 `raw/desktop` 等裸 IP + 错误 Host 会回 30x/4xx，认任意非 5xx
+状态码即算可达，详见 §CDN 优选 `validate_any_status`）。候选池由 `cmd/fetchghip`
+生产，取固定种子（`seedByDomain`，GitHub 常用任意播边缘）＋ GitHub520 社区实测
+＋ Meta 兜底的**并集**（去重排序，幂等）：
 
 ```bash
 bin/fetchghip                # 重写 config/rules/github_accel.json 各 site 的 prefer.candidates（幂等）
 bin/fetchghip --root . --rule github_accel --dry-run   # 预览不落盘
 ```
 
-- 种子仅保留落在 `githubMetaRanges`（185.199.108.0/22、140.82.112.0/20、
-  192.30.252.0/22、20.27.177.0/24、20.201.28.0/24、20.205.243.0/24）的地址，
-  剔除被污染的上游解析（如 gist 的 37.61.54.158——直接不写 prefer，交由 handler
-  上游 `ghgist.steam302.xyz` 兜底）。
-- `prefer run --rule github_accel` 对多候选实测择优，`genconfig` 渲染时前置
-  Top-N IP；原 handler 上游保留作 fallback，任一 pin 失效 caddy 健康检查自动剔除。
+- **不做"官方段过滤"**：`api.github.com/meta` 返回的 CIDR 是 GitHub 源站/出口段，
+  **不是边缘节点列表**——段内 IP 未必服务目标域名（实测 `185.199.108.133` 对
+  `github.com` 回 500），段外 IP 也可能正好服务该域名。候选池只维护候选、不据此
+  断言可用性。
+- 候选真伪由 `prefer run --rule github_accel` 在运行时用**真实 SNI + Host 请求**
+  判定：`validate_any_status` 放行非 5xx（并拒绝 `421 Misdirected Request` 这种
+  SNI/vhost 不匹配），连接失败/5xx 一律剔除。`genconfig` 渲染时前置实测 Top-N IP，
+  并与 handler 原上游去重合并。
+- handler 的 `lb` 设 `try_duration: 10s` + `fail_duration: 30s`/`max_fails: 2`：
+  某 pin 拨号超时/失败时 caddy 在 10s 内自动换下一个上游重试，连续失败 2 次则
+  临时剔除该 pin 30s——多候选真正具备故障切换能力。
+- 因此 gist 等本机不可达域名：候选（如 GitHub520 的 `203.98.7.65`）会被 prefer
+  实测剔除，不写 pin；无 pin 时回退 handler 上游 `ghgist.steam302.xyz` 兜底。
 - 更新种子后跑 `bin/fetchghip && bin/prefer run --rule github_accel && bin/apply`。
 
 ### steamstatic 家族段决策（2026-09）

@@ -14,7 +14,10 @@
             "https://20.205.243.166"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -36,6 +39,7 @@
       "prefer": {
         "candidates": [
           "140.82.112.3",
+          "140.82.114.4",
           "185.199.108.133",
           "20.205.243.166"
         ],
@@ -54,7 +58,10 @@
             "https://ghgist.steam302.xyz"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -75,7 +82,9 @@
       "prefer": {
         "candidates": [
           "140.82.112.3",
-          "20.205.243.168"
+          "140.82.114.4",
+          "20.205.243.168",
+          "203.98.7.65"
         ],
         "mode": "node",
         "speed_test": false,
@@ -92,7 +101,10 @@
             "https://20.27.177.116"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -113,6 +125,7 @@
       "prefer": {
         "candidates": [
           "140.82.112.3",
+          "140.82.114.4",
           "185.199.108.133",
           "20.205.243.168"
         ],
@@ -131,7 +144,10 @@
             "https://185.199.109.133"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -179,10 +195,6 @@
       }
     },
     {
-      "hosts": [
-        "assets-cdn.github.com"
-      ],
-      "pna_cors": true,
       "handlers": [
         {
           "type": "reverse_proxy",
@@ -190,7 +202,10 @@
             "https://185.199.109.153"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -204,7 +219,21 @@
             ]
           ]
         }
-      ]
+      ],
+      "hosts": [
+        "assets-cdn.github.com"
+      ],
+      "pna_cors": true,
+      "prefer": {
+        "candidates": [
+          "185.199.109.153"
+        ],
+        "mode": "node",
+        "speed_test": false,
+        "top_n": 1,
+        "validate": true,
+        "validate_any_status": true
+      }
     },
     {
       "handlers": [
@@ -214,7 +243,10 @@
             "https://185.199.109.154"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -238,7 +270,9 @@
       "prefer": {
         "candidates": [
           "140.82.112.3",
-          "185.199.108.154"
+          "140.82.114.6",
+          "185.199.108.154",
+          "185.199.110.215"
         ],
         "mode": "node",
         "speed_test": false,
@@ -255,7 +289,10 @@
             "https://20.205.243.165"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -277,6 +314,7 @@
       "prefer": {
         "candidates": [
           "140.82.112.3",
+          "140.82.114.10",
           "185.199.108.133",
           "20.205.243.165"
         ],
@@ -295,7 +333,10 @@
             "https://185.199.108.153"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -330,17 +371,6 @@
       }
     },
     {
-      "hosts": [
-        "pages.github.com",
-        "copilot.github.com",
-        "services.github.com",
-        "resources.github.com",
-        "developer.github.com",
-        "partner.github.com",
-        "desktop.github.com",
-        "guides.github.com"
-      ],
-      "pna_cors": true,
       "handlers": [
         {
           "type": "reverse_proxy",
@@ -348,7 +378,10 @@
             "https://185.199.110.153"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -362,7 +395,28 @@
             ]
           ]
         }
-      ]
+      ],
+      "hosts": [
+        "pages.github.com",
+        "copilot.github.com",
+        "services.github.com",
+        "resources.github.com",
+        "developer.github.com",
+        "partner.github.com",
+        "desktop.github.com",
+        "guides.github.com"
+      ],
+      "pna_cors": true,
+      "prefer": {
+        "candidates": [
+          "185.199.108.153"
+        ],
+        "mode": "node",
+        "speed_test": false,
+        "top_n": 1,
+        "validate": true,
+        "validate_any_status": true
+      }
     },
     {
       "handlers": [
@@ -372,7 +426,10 @@
             "https://gh140.steam302.xyz"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -398,6 +455,8 @@
       "prefer": {
         "candidates": [
           "140.82.112.3",
+          "140.82.113.21",
+          "140.82.113.22",
           "185.199.108.133",
           "185.199.109.133"
         ],
@@ -416,7 +475,10 @@
             "https://185.199.108.133"
           ],
           "lb": {
-            "policy": "random"
+            "fail_duration": "30s",
+            "max_fails": 2,
+            "policy": "random",
+            "try_duration": "10s"
           },
           "transport": {
             "tls": true,
@@ -437,7 +499,9 @@
       "prefer": {
         "candidates": [
           "185.199.108.133",
-          "185.199.109.133"
+          "185.199.108.153",
+          "185.199.109.133",
+          "185.199.111.133"
         ],
         "mode": "node",
         "speed_test": false,

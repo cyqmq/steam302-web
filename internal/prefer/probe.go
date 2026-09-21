@@ -95,8 +95,10 @@ func validateRelease(ips []string, results []Result, o *Options) {
 			}
 			resp.Body.Close()
 			if o.ValidateAnyStatus {
-				// node 模式：放行 2xx/3xx/4xx（301/404 都算可达），仅拒 5xx/连接失败
-				if resp.StatusCode >= 500 {
+				// node 模式：放行 2xx/3xx/4xx（301/404 都算可达），仅拒 5xx/连接失败。
+				// 另拒 421 Misdirected Request——这是 SNI/Host 与目标 vhost 不匹配的
+				// 规范状态码，说明该 IP 并未服务此域名。
+				if resp.StatusCode >= 500 || resp.StatusCode == 421 {
 					results[i].OK = false
 				}
 			} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {

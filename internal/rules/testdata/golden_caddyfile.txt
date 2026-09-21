@@ -8,6 +8,9 @@ https://github.com:25584 https://www.github.com:25584 {
     tls config/certs/leaf.pem config/certs/leaf.key
 reverse_proxy https://20.205.243.166 {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls
@@ -21,6 +24,9 @@ https://gist.github.com:25584 {
     tls config/certs/leaf.pem config/certs/leaf.key
 reverse_proxy https://ghgist.steam302.xyz {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls
@@ -34,6 +40,9 @@ https://api.github.com:25584 {
     tls config/certs/leaf.pem config/certs/leaf.key
 reverse_proxy https://20.27.177.116 {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls
@@ -61,6 +70,9 @@ https://raw.githubusercontent.com:25584 https://raw.github.com:25584 https://cam
 
 reverse_proxy https://185.199.109.133 {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls
@@ -88,6 +100,9 @@ https://assets-cdn.github.com:25584 {
 
 reverse_proxy https://185.199.109.153 {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls
@@ -115,6 +130,9 @@ https://github.githubassets.com:25584 https://help.github.com:25584 https://docs
 
 reverse_proxy https://185.199.109.154 {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls
@@ -142,6 +160,9 @@ https://codeload.github.com:25584 {
 
 reverse_proxy https://20.205.243.165 {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls
@@ -155,6 +176,9 @@ https://github.io:25584 https://www.github.io:25584 https://*.github.io:25584 {
     tls config/certs/leaf.pem config/certs/leaf.key
 reverse_proxy https://185.199.108.153 {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls
@@ -182,6 +206,9 @@ https://pages.github.com:25584 https://copilot.github.com:25584 https://services
 
 reverse_proxy https://185.199.110.153 {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls
@@ -195,6 +222,9 @@ https://support.github.com:25584 https://education.github.com:25584 https://ente
     tls config/certs/leaf.pem config/certs/leaf.key
 reverse_proxy https://gh140.steam302.xyz {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls
@@ -208,6 +238,9 @@ https://desktop.githubusercontent.com:25584 {
     tls config/certs/leaf.pem config/certs/leaf.key
 reverse_proxy https://185.199.108.133 {
     lb_policy random
+    lb_try_duration 10s
+    fail_duration 30s
+    max_fails 2
     header_up Host {host}
     transport http {
         tls

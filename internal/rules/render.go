@@ -330,8 +330,14 @@ func applyPreferred(site Site, e *prefer.Entry) Site {
 		h2 := h
 		if h2.Type == "reverse_proxy" && (len(h2.Upstreams) > 0 || len(h2.DynamicUpstreams) > 0) {
 			combined := make([]string, 0, len(ups)+len(h2.Upstreams))
-			combined = append(combined, ups...)
-			combined = append(combined, h2.Upstreams...)
+			seen := make(map[string]bool, len(ups)+len(h2.Upstreams))
+			for _, u := range append(append([]string{}, ups...), h2.Upstreams...) {
+				if seen[u] {
+					continue // pins 与 handler 原上游重叠时去重，避免同一 IP 重复入列
+				}
+				seen[u] = true
+				combined = append(combined, u)
+			}
 			h2.Upstreams = combined
 			// cidr/cf 模式下 pins 是严格按该域名校验过的边缘；原 akamai/动态上游
 			// 对 fastly/cloudflare 主机名会 400（Invalid URL），故只保留 pins。

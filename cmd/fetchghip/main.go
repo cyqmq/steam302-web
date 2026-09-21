@@ -1,9 +1,14 @@
-// fetchghip 抓取 GitHub 可用 IP 候选并写回 github_accel 规则的 prefer.candidates。
+// fetchghip 抓取 GitHub 候选 IP 并写回 github_accel 规则的 prefer.candidates。
 //
-// 数据源（依次尝试，直至拿到可用数据）：
-//  1. jsDelivr 镜像的 GitHub520 每日 hosts（国内可达的社区聚合结果）
-//  2. GitHub 官方 Meta API（api.github.com/meta），经 DoH 解析出真实 IP
-//     直连，绕过自身 hosts 劫持（*.github.com → 127.0.0.1）
+// 候选来源（并集，任一源失败不影响其余）：
+//  1. 固定种子 seedByDomain（GitHub 常用任意播边缘）
+//  2. jsDelivr 镜像的 GitHub520 每日 hosts（社区实测）
+//  3. GitHub 官方 Meta API（api.github.com/meta），经 DoH 解析真实 IP 直连
+//
+// 注意：Meta API 返回的 CIDR 是 GitHub 源站/出口段，不是边缘节点列表，
+// 因此**不据此过滤候选**（段内 IP 未必服务目标域名）。候选是否真能服务该域名，
+// 由 prefer 运行时的 validate_any_status（真实 SNI/Host 请求，非 5xx 且非 421）
+// 实时判定；fetchghip 只维护候选池，保证幂等、不因单次网络抖动清空。
 //
 // 更新策略：
 //   - 只更新 github_accel.json 中各 site 的 prefer.candidates（node 模式测速候选）
@@ -241,72 +246,63 @@ func reparseSites(data []byte) ([]siteFlat, error) {
 	return out, nil
 }
 
-// discoverCandidates 按优先级抓取候选 IP：
-//  1. DoH 直查各 github 域名实时 DNS（Fastly 分配的准确边缘，含泛解析域名）
+// discoverCandidates 合并所有可用来源的候选（并集），任一源失败不影响其余：
+//  1. 固定种子（seedByDomain，幂等稳定）
 //  2. GitHub520 每日 hosts（社区实测）
-//  3. GitHub Meta API（经 DoH 引导真实 IP 直连）＋已知种子
+//  3. GitHub Meta API 兜底（经 DoH 引导真实 IP 直连）
+//
+// 候选池只做并集/去重/排序（幂等），不做"官方段过滤"或 SNI 硬剔除——IP 是否
+// 真能服务目标域名由 prefer 运行时的 validate_any_status 实时判定。
 func discoverCandidates() (map[string][]string, string, error) {
-	if m, err := fetchDoH(); err == nil && len(m) > 0 {
-		return m, "DoH(github.com 实时 DNS)", nil
+	out := map[string][]string{}
+	var sources []string
+	merge := func(m map[string][]string) {
+		for host, ips := range m {
+			out[host] = dedupe(append(out[host], ips...))
+		}
+	}
+	if m, err := fetchSeed(); err == nil && len(m) > 0 {
+		merge(m)
+		sources = append(sources, "种子")
 	}
 	if m, err := fetchGitHub520(); err == nil && len(m) > 0 {
-		return m, "GitHub520(jsDelivr)", nil
+		merge(m)
+		sources = append(sources, "GitHub520")
 	}
 	if m, err := fetchMeta(); err == nil && len(m) > 0 {
-		return m, "GitHub Meta API(直连)", nil
+		merge(m)
+		sources = append(sources, "Meta")
 	}
-	return nil, "", fmt.Errorf("三个数据源均失败")
+	if len(out) == 0 {
+		return nil, "", fmt.Errorf("三个数据源均失败")
+	}
+	for host := range out {
+		sort.Strings(out[host])
+	}
+	return out, strings.Join(sources, "+"), nil
 }
 
-// fetchDoH 给 github 各服务域名生成稳定候选。
-// 候选 = seedByDomain 固定种子（GitHub 常用任意播边缘），保证幂等、无 DNS 抖动。
-// DoH 原先用于感知边缘变化，但 github 边缘轮转导致每次结果波动（支持域会
-// 给出 140.82.114.21/112.22/113.22 等不同地址），改为固定种子更稳妥；
-// prefer 测速会兜底剔除失效 IP。本机解析被 fake-ip 污染，如确需动态感知，
-// 可显式追加 IP 到 seedByDomain 并重跑。
-func fetchDoH() (map[string][]string, error) {
+// fetchSeed 给 github 各服务域名生成候选池（幂等）。
+// 候选 = seedByDomain 固定种子（GitHub 常用任意播边缘），保证输出稳定。
+// 不做"官方段过滤"、不做 SNI 硬剔除：Meta 段是源站/出口段，段内 IP 未必服务
+// 目标域名（实测 185.199.108.133 对 github.com 回 500）；真伪交给 prefer 运行时
+// 的 validate_any_status（非 5xx/连接失败才可用）实时判定。此处仅维护候选池，
+// 避免单次网络抖动把候选清空。
+func fetchSeed() (map[string][]string, error) {
 	out := map[string][]string{}
 	for target, ips := range seedByDomain {
-		valid := []string{}
-		for _, ip := range ips {
-			if ipInRanges(ip, githubMetaRanges) {
-				valid = append(valid, ip)
-			}
-		}
-		if len(valid) > 0 {
-			out[target] = dedupe(valid)
+		if len(ips) > 0 {
+			out[target] = dedupe(ips)
 			sort.Strings(out[target])
 		}
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("无有效种子候选")
+		return nil, fmt.Errorf("无种子候选")
 	}
 	return out, nil
 }
 
-// seedIPs 是 GitHub 常用任意播边缘（GitHub520 与实测长期稳定），
-// 用于主域名候选池补齐，保证 fetchghip 输出稳定（不受 DNS 往返抖动影响）。
-var seedIPs = []string{
-	"185.199.108.133",
-	"185.199.109.133",
-	"185.199.110.133",
-	"185.199.111.133",
-	"185.199.108.153",
-	"185.199.109.153",
-	"185.199.108.154",
-	"140.82.112.3",
-	"140.82.113.22",
-	"140.82.114.4",
-	"20.205.243.165",
-	"20.205.243.166",
-	"20.205.243.168",
-	"20.27.177.113",
-	"20.201.28.148",
-	"192.30.252.153",
-}
-
-// seedByDomain 为主域提供固定候选（稳定幂等）；日常优先于此，
-// DoH 结果仅追加额外的官方段 IP 以感知边缘变化。
+// seedByDomain 为主域提供固定候选（稳定幂等）；真伪由 prefer 运行时判定。
 var seedByDomain = map[string][]string{
 	"github.com":                    {"20.205.243.166", "140.82.112.3", "185.199.108.133"},
 	"gist.github.com":               {"20.205.243.168", "140.82.112.3"},
@@ -317,51 +313,6 @@ var seedByDomain = map[string][]string{
 	"github.io":                     {"185.199.108.153", "185.199.109.153", "185.199.110.153", "185.199.111.153"},
 	"support.github.com":            {"185.199.109.133", "140.82.112.3", "185.199.108.133"},
 	"desktop.githubusercontent.com": {"185.199.108.133", "185.199.109.133"},
-}
-
-// filterOfficial 只保留落在 GitHub 官方段内的 IP（见 githubMetaRanges）。
-func filterOfficial(ips []string) []string {
-	out := ips[:0]
-	for _, ip := range ips {
-		if ipInRanges(ip, githubMetaRanges) {
-			out = append(out, ip)
-		}
-	}
-	return out
-}
-
-// githubMetaRanges 是 GitHub 官方 Anycast 段（来自 api.github.com/meta web/pages，
-// 2026 年快照；涵盖 185.199/140.82/20.205/20.27/20.201/192.30 等常见边缘）。
-var githubMetaRanges = []string{
-	"185.199.108.0/22",
-	"140.82.112.0/20",
-	"192.30.252.0/22",
-	"20.27.177.0/24",
-	"20.201.28.0/24",
-	"20.205.243.0/24",
-	"20.248.0.0/13",
-}
-
-func ipInRanges(ip string, ranges []string) bool {
-	ipAddr := net.ParseIP(ip)
-	if ipAddr == nil {
-		return false
-	}
-	for _, cidr := range ranges {
-		if _, ipnet, err := net.ParseCIDR(cidr); err == nil && ipnet.Contains(ipAddr) {
-			return true
-		}
-	}
-	return false
-}
-
-// prefixKey 取 IP 的 /16 前缀作为"不同段"标识，用于异构候选去重。
-func prefixKey(ip string) string {
-	a := net.ParseIP(ip).To4()
-	if a == nil {
-		return ip
-	}
-	return fmt.Sprintf("%d.%d", a[0], a[1])
 }
 
 func fetchGitHub520() (map[string][]string, error) {
@@ -450,14 +401,8 @@ func metaByIP(ip string) (map[string][]string, error) {
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("Meta HTTP %d", resp.StatusCode)
 	}
-	var meta struct {
-		Web   []string `json:"web"`
-		Pages []string `json:"pages"`
-		API   []string `json:"api"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
-		return nil, err
-	}
+	// 只确认 /meta 可达（HTTP 200）；返回的 CIDR 是源站/出口段，不作候选过滤依据。
+	_, _ = io.Copy(io.Discard, resp.Body)
 	fixed := map[string][]string{
 		"github.com":                    {"20.205.243.166", "140.82.114.4", "185.199.108.133"},
 		"api.github.com":                {"20.205.243.168", "140.82.114.4"},
@@ -470,31 +415,11 @@ func metaByIP(ip string) (map[string][]string, error) {
 		"pages.github.com":              {"185.199.108.153"},
 		"desktop.githubusercontent.com": {"185.199.108.153"},
 	}
-	ranges := append(append([]string{}, meta.Web...), meta.Pages...)
-	belong := func(ip string) bool {
-		ipAddr := net.ParseIP(ip)
-		if ipAddr == nil {
-			return false
-		}
-		for _, cidr := range ranges {
-			if _, ipnet, err := net.ParseCIDR(cidr); err == nil && ipnet.Contains(ipAddr) {
-				return true
-			}
-		}
-		return false
-	}
-	out := map[string][]string{}
-	for host, ips := range fixed {
-		for _, ip := range ips {
-			if belong(ip) {
-				out[host] = append(out[host], ip)
-			}
-		}
-		if len(out[host]) == 0 {
-			out[host] = ips
-		}
-	}
-	return out, nil
+	// 不做"官方段过滤"：Meta 的 CIDR 是源站/出口段，段内 IP 未必服务目标域名
+	// （实测 185.199.108.133 对 github.com 回 500），段外 IP 也可能正好服务该域名。
+	// 候选真伪由 prefer 运行时的 validate_any_status（非 5xx/连接失败才可用）判定，
+	// 此处只提供候选池，不做网络硬剔除（避免单次抖动清空候选）。
+	return fixed, nil
 }
 
 func dohResolve(host string) ([]string, error) {

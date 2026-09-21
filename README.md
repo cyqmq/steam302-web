@@ -92,9 +92,10 @@
 - **GitHub 加速真实可用**：原版对本机只回"空 200"（其 caddy.json 无 github 站点），本仓库新增
   `github_accel` 规则，`api.github.com/zen`、github 页、raw/avatars 均为真实内容。
   上游为**多候选 + 自动优选**：`bin/fetchghip` 幂等重写 `prefer.candidates`
-  （固定种子 + GitHub 官方段过滤），`bin/prefer --rule github_accel` 实测择优后渲染为
-  Caddyfile 前置 IP，原 handler 上游保留兜底，任一 pin 失效由 caddy 健康检查剔除
-  （详见 `docs/RULES.md` §GitHub 域名优选）。
+  （固定种子 + GitHub520 社区实测 + Meta 兜底的并集，去重排序），
+  `bin/prefer --rule github_accel` 以真实 SNI/Host 请求实测择优（非 5xx 且拒绝
+  `421` 才算可用）后渲染为 Caddyfile 前置 IP，原 handler 上游保留兜底，任一 pin
+  失效由 caddy 健康检查剔除（详见 `docs/RULES.md` §GitHub 域名优选）。
 - **systemd `Conflicts` 原子切换**：新版三单元与原版 `steam302.service` 互斥，`systemctl start`
   新版会自动停旧版，443/80 无缝交接，避免"劫持生效但 443 无人监听"的断网态。
 - **WebUI 分组开关 + 一键重渲染**：`/api/rules`、`/api/rules/{id}`、`/api/regen`。
@@ -212,9 +213,9 @@ go test -race ./internal/fwd/
 ## 已知限制
 
 - `youtube_iframe` 的 `web/files/iframe/iframe_api*` 仍是占位（P0 待实现，见 `docs/RULES.md`）。
-- gist.github.com 本机不可达（原版同）：`fetchghip` 自动剔除被污染的 gist 候选（不在 GitHub
-  官方段），交由 handler 上游 `ghgist.steam302.xyz` 兜底；次要 github 站点遇 502 时由
-  caddy 健康检查剔除失效 pin 自动切换（多候选 + 兜底上游）。
+- gist.github.com 本机不可达（原版同）：候选（含 GitHub520 的 `203.98.7.65`）由
+  `prefer` 运行时实测剔除、不写 pin，回退 handler 上游 `ghgist.steam302.xyz` 兜底；
+  次要 github 站点遇 502 时由 caddy 健康检查剔除失效 pin 自动切换（多候选 + 兜底上游）。
 - WebUI 无鉴权，仅绑 `127.0.0.1`；证书/`bin/`/运行时 hosts 不入库（见 `.gitignore`）。
 
 ## 许可
