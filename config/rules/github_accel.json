@@ -136,7 +136,8 @@
         "speed_test": false,
         "top_n": 2,
         "validate": true,
-        "validate_any_status": true
+        "validate_path": "/zen",
+        "validate_any_status": false
       }
     },
     {
@@ -329,6 +330,7 @@
         "speed_test": false,
         "top_n": 1,
         "validate": true,
+        "validate_path": "/octocat/Hello-World/tar.gz/refs/heads/master",
         "validate_any_status": true
       }
     },

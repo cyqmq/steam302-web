@@ -274,6 +274,10 @@ bin/fetchghip --root . --rule github_accel --dry-run   # 预览不落盘
   切换，避免"静态上游恰好不可达"时约一半请求被拖到 20s 超时（502/000）。
 - 因此 gist 等本机不可达域名：候选（如 GitHub520 的 `203.98.7.65`）会被 prefer
   实测剔除，不写 pin；无 pin 时回退 handler 上游 `ghgist.steam302.xyz` 兜底。
+- 按站点收紧校验：`api.github.com` 走**严格 2xx** 且 `validate_path: "/zen"`（api
+  正确边缘必回 200，跨域 301/404 全拒——404 型错误边缘不会被"放行 4xx"放过签）；
+  `codeload.github.com` 用真实归档路径 `/octocat/Hello-World/tar.gz/refs/heads/master`
+  判定（其根路径对合法边缘也会 301，需用真实资源区分）。
 - 更新种子后跑 `bin/fetchghip && bin/prefer run --rule github_accel && bin/apply`。
 
 ### steamstatic 家族段决策（2026-09）
