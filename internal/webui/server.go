@@ -451,6 +451,29 @@ func unitActive(name string) string {
 	return st
 }
 
+func processRunning(pattern string) bool {
+	out, err := exec.Command("pgrep", "-f", pattern).Output()
+	return err == nil && strings.TrimSpace(string(out)) != ""
+}
+
+// svcState 合并 systemd 单元与进程两种视角：单元 active/activating 直接采纳；
+// 单元 inactive 但进程在跑（如手工 setsid 启动 caddy）仍报 active，避免“服务在
+// 运行却显示已停止”的误报。
+func svcState(unit string, patterns ...string) string {
+	if st := unitActive(unit); st == "active" || st == "activating" {
+		return st
+	}
+	for _, p := range patterns {
+		if processRunning(p) {
+			return "active"
+		}
+	}
+	if st := unitActive(unit); st != "" {
+		return st
+	}
+	return "inactive"
+}
+
 func mustRun(name string, args ...string) []byte {
 	out, err := exec.Command(name, args...).CombinedOutput()
 	if err != nil {
@@ -561,10 +584,10 @@ func (s *Server) status() netStatus {
 		MinimizeTray:  sv.MinimizeTray,
 		DevSupport:    sv.DevSupport,
 		Services: map[string]string{
-			"caddy": unitActive("steam302-web-caddy.service"),
-			"fwd":   unitActive("steam302-web-fwd.service"),
-			"dnsd":  unitActive("steam302-web-dnsd.service"),
-			"webui": unitActive("steam302-web-webui.service"),
+			"caddy": svcState("steam302-web-caddy.service", "caddy run --config "+filepath.Join(s.Root, "Caddyfile")),
+			"fwd":   svcState("steam302-web-fwd.service", "s302fwd run"),
+			"dnsd":  svcState("steam302-web-dnsd.service"),
+			"webui": svcState("steam302-web-webui.service"),
 		},
 		Timestamp: time.Now().Format("2006/01/02 15:04:05"),
 	}
