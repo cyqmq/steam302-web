@@ -150,6 +150,96 @@ func TestBlacklistEndpoints(t *testing.T) {
 	}
 }
 
+func TestStatusEndpoint(t *testing.T) {
+	h := serve(t, newTestRoot(t))
+	rr := do(t, h, "GET", "/api/status", nil)
+	if rr.Code != 200 {
+		t.Fatalf("status code=%d", rr.Code)
+	}
+	var st netStatus
+	if err := json.Unmarshal(rr.Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.BindIP != "127.0.0.1" || st.HTTPSPort != 25584 || st.HTTPPort != 24196 {
+		t.Fatalf("status wrong: %+v", st)
+	}
+	if st.Upstream != "" {
+		t.Fatalf("upstream should be empty: %q", st.Upstream)
+	}
+	if len(st.Services) != 4 {
+		t.Fatalf("services map should have 4 entries: %+v", st.Services)
+	}
+}
+
+func TestLogsEndpoint(t *testing.T) {
+	root := newTestRoot(t)
+	h := serve(t, root)
+
+	// 文件不存在：200 + error 字段
+	rr := do(t, h, "GET", "/api/logs", nil)
+	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "error") {
+		t.Fatalf("missing log expected 200+error, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// 写入日志后：all=1 返回全部，默认截断到最后 1 行体量的 1000 行
+	logPath := filepath.Join(root, "config", "s302fwd.log")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lines := []string{"[00:00:01] hello", "[00:00:02] world", "[00:00:03] ok"}
+	mustWrite(t, logPath, strings.Join(lines, "\n")+"\n")
+
+	rr = do(t, h, "GET", "/api/logs?all=1", nil)
+	if rr.Code != 200 {
+		t.Fatalf("logs all code=%d", rr.Code)
+	}
+	var lv logsView
+	if err := json.Unmarshal(rr.Body.Bytes(), &lv); err != nil {
+		t.Fatal(err)
+	}
+	if len(lv.Lines) != 3 || lv.Total != 3 || lv.Truncated {
+		t.Fatalf("logs wrong: %+v", lv)
+	}
+	rr = do(t, h, "GET", "/api/logs", nil)
+	_ = json.Unmarshal(rr.Body.Bytes(), &lv)
+	if len(lv.Lines) != 3 || lv.Lines[0] != lines[0] {
+		t.Fatalf("default logs wrong: %+v", lv)
+	}
+}
+
+func TestBulkEndpoint(t *testing.T) {
+	h := serve(t, newTestRoot(t))
+	rr := do(t, h, "POST", "/api/rules/bulk", map[string]any{"enabled": false})
+	if rr.Code != 200 {
+		t.Fatalf("bulk code=%d: %s", rr.Code, rr.Body.String())
+	}
+	var out struct {
+		OK    bool `json:"ok"`
+		Count int  `json:"count"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if !out.OK || out.Count != 1 {
+		t.Fatalf("bulk wrong: %+v", out)
+	}
+	// 缺 body
+	if rr := do(t, h, "POST", "/api/rules/bulk", nil); rr.Code != 400 {
+		t.Fatalf("bulk without body expected 400, got %d", rr.Code)
+	}
+}
+
+func TestVersionEndpoint(t *testing.T) {
+	h := serve(t, newTestRoot(t))
+	rr := do(t, h, "GET", "/api/version", nil)
+	if rr.Code != 200 {
+		t.Fatalf("version code=%d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), `"name":"`) || !strings.Contains(rr.Body.String(), `"version":"`) {
+		t.Fatalf("version body missing fields: %s", rr.Body.String())
+	}
+}
+
 func TestProfileEndpoint(t *testing.T) {
 	h := serve(t, newTestRoot(t))
 	rr := do(t, h, "GET", "/api/profile", nil)

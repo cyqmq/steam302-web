@@ -46,10 +46,10 @@
 | 重置所有设置（删配置+移自启） | `deploy/uninstall.sh` |
 | 证书有效期（如 10 年） | `bin/genpki --ca-years 10 --leaf-days 365` |
 | 上游域名（Steam 相关，可自建节点） | 规则文件 `upstreams[]` 覆盖 `env.json → upstream_defaults` 默认值 |
-| 用户自定义规则（列表查看） | WebUI `http://127.0.0.1:34902` 列出全部规则 + 启用状态 + 覆盖域名数 + 缺失文件；顶部「一键应用」经 `sudo -n bin/apply` 重生成 → 写 `/etc/hosts` → 重启服务 |
-| 用户自定义规则编辑器（铅笔图标）/ 域名黑名单 | ✅ WebUI 每条规则「✎ 编辑」直接改 JSON（校验后重生成）；顶部「域名黑名单」面板（`config/blacklist.json`，支持 `*.example.com`，命中域名不进 hosts 劫持走直连） |
-| 复制代理设置参数（剪贴板/PAC/环境变量） | ✅ WebUI「复制代理参数」面板：Hosts 劫持片段 / curl 验证命令 / PAC / 环境变量四种格式一键复制；PAC 为**白名单式**（仅被劫持域名走 HTTPS 代理、其余 DIRECT），黑名单域名天然被排除 |
-| 界面主题（亮/暗） | ✅ WebUI 顶部切换（CSS 变量 + localStorage 记忆，默认暗色） |
+| 用户自定义规则（列表查看） | ✅ WebUI「服务」页（侧栏 服务）：分组折叠列表（Steam/游戏/图片/聊天/媒体/其它）+ 全选/分组开关 + 右侧「服务控制」（停止/⟳重载）+「网络监听/设置信息」运行时面板（监听地址/端口/hosts/DNS重定向/自动代理/系统代理/CDN优选/自启/自启服务/自动更新/上游域名/支持开发）；「⟳ 重载」= `sudo -n bin/apply` 重生成 → 写 `/etc/hosts` → 重启服务 |
+| 用户自定义规则编辑器（铅笔图标）/ 域名黑名单 | ✅ WebUI「服务」页每条规则「✎ 编辑」直接改 JSON（校验后重生成）；「设置→高级→域名黑名单」面板（`config/blacklist.json`，支持 `*.example.com`，命中域名不进 hosts 劫持走直连）；「高级」另含 代理参数 / 重新生成 / 证书重置 / 恢复出厂 |
+| 复制代理设置参数（剪贴板/PAC/环境变量） | ✅ WebUI「设置→高级→复制代理参数」面板：Hosts 劫持片段 / curl 验证命令 / PAC / 环境变量四种格式一键复制；PAC 为**白名单式**（仅被劫持域名走 HTTPS 代理、其余 DIRECT），黑名单域名天然被排除 |
+| 界面复刻（深红 SukiUI 风） | ✅ 固定深色+深红强调色，侧栏导航（服务/设置/日志/发现新版本）+ 各页卡片布局，复刻自原版 Steamcommunity 302 界面 |
 | 查看使用教程 | 仓库内文档：`README` / `docs/RULES.md` / `docs/PORTING.md` |
 | Origin 游戏下载（HTTPS→HTTP） | `origin_dl` 规则（默认关）：origin-a.akamaihd.net 反代到 HTTP 流媒体边缘 |
 | Uplay 客户端更新防劫持 | `uplay_update` 规则（默认关）：static3.cdn.ubi.com 转回官方源 |
@@ -70,7 +70,7 @@
 | 重置根证书 / 重置网站证书（分开重置） | ✅ WebUI「设置」页按钮（内部 `genpki --reset-root`/`--reset-leaf`，重置后自动重载）；CLI 亦可 |
 | 证书有效期 | ✅ WebUI「设置」页可改 CA 年数/叶天数（写 `env.json → cert.ca_years/leaf_days`，genpki 未带 flag 时读之；默认 10 年 / 365 天）|
 | 启用 DNS 重定向模式 | 默认走 **hosts 劫持**；另提供轻量本机 DNS 重定向 `bin/dnsd`（`steam302-web-dnsd.service` 可选）：劫持域应答 `127.0.0.1`、其余域名转发上游（支持 `*.mod.io` 这类 hosts 无法表达的通配子域），监听 `127.0.0.1:53` UDP+TCP，带上游 TTL 缓存；需时将系统解析器指向 `127.0.0.1` 启用 |
-| 日志自动清除 | Caddy 日志进 journald（systemd 自动轮转）；`config/s302fwd.log` 按体积轮转（WebUI「设置」页可调 `fwd.log_max_bytes`，默认 5MB，超限改为 `.1`） |
+| 日志自动清除 / 日志查看 | Caddy 日志进 journald（systemd 自动轮转）；`config/s302fwd.log` 按体积轮转（默认 5MB，超限改为 `.1`）；WebUI「日志」页实时尾部查看（最后1000行 / 显示所有） |
 | 输出 DNS 重定向日志 | 未输出按域名请求日志；基础运行日志走 journald / s302fwd.log |
 | CDN 优选 | 已实现 `bin/prefer`（node=接入节点 / Akamai 镜像、cidr/cf=官方段抽样实测），systemd 启动前 `--quick` 补齐缓存并渲染为 Caddyfile 前置 IP；cidr/cf 只保留经 2xx 域名校验的 pins，避免 403/502；`speed_test` 时按下载速率排序，否则按延迟；github 系站点由 `bin/fetchghip` 生成候选后走同一优选流程（见「本仓库独有的增强」） |
 | CDN 优选段库 | `config/cdn_ips.json` vendored 官方段（Akamai/Cloudflare/Fastly/CloudFront），`bin/fetchcdnips` 可拉取更新（详见 `docs/RULES.md`） |

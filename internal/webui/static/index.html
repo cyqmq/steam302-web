@@ -3,103 +3,373 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>steam302-web 控制台</title>
+<title>Steamcommunity 302 Web</title>
 <style>
   :root {
     color-scheme: dark;
-    --bg: #16181d; --fg: #e6e6e6;
-    --border: #2a2e37; --muted: #8b93a1;
-    --card: #1d2027; --desc: #9aa2b1;
-    --tag: #262b34; --tag-fg: #9aa2b1;
-    --warn-bg: #4a3410; --warn-fg: #f0b45a;
-    --on-bg: #143a24; --on-fg: #5fd08a;
-    --off-bg: #33262b; --off-fg: #d98a8a;
-    --check-bg: #333844; --check-knob: #e6e6e6; --check-on: #2f7d4f;
-    --btn: #2b6cb0; --btn-fg: #fff; --ghost: #2a2e37;
-    --status-bg: #20242c; --status-border: #333844;
-  }
-  :root[data-theme="light"] {
-    color-scheme: light;
-    --bg: #ffffff; --fg: #1f2328;
-    --border: #d0d7de; --muted: #57606a;
-    --card: #f6f8fa; --desc: #57606a;
-    --tag: #eaeef2; --tag-fg: #57606a;
-    --warn-bg: #fff1bf; --warn-fg: #9a6700;
-    --on-bg: #dafbe1; --on-fg: #1a7f37;
-    --off-bg: #ffebe9; --off-fg: #cf222e;
-    --check-bg: #d0d7de; --check-knob: #ffffff;
-    --btn: #2b6cb0; --ghost: #eaeef2; --ghost-fg: #1f2328;
-    --status-bg: #f6f8fa; --status-border: #d0d7de;
+    --bg: #17171c; --bg-soft: #1c1c23;
+    --side: #131318; --side-border: #23232c;
+    --card: #1f1f27; --border: #2b2b35;
+    --fg: #e9e9ec; --muted: #9b9ba7; --faint: #6f6f7d;
+    --accent: #d0343f; --accent-hi: #ef4455; --accent-dim: #3a161c;
+    --on: #51c27a; --on-bg: #12271c; --off: #d98a8a; --off-bg: #2a1a1f;
+    --warn: #f0b45a; --warn-bg: #3a2f16;
+    --term-bg: #0d0d11; --term-border: #212129; --ts: #7c8a97;
+    --nil: #565664;
+    --shadow: 0 10px 30px rgba(0,0,0,.45);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.5 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
-  header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 12px; }
-  h1 { font-size: 18px; margin: 0; }
-  header .sub { color: var(--muted); font-size: 12px; }
-  header .actions { margin-left: auto; display: flex; gap: 8px; }
-  main { max-width: 960px; margin: 0 auto; padding: 20px 24px 60px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 26px 0 8px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; display: flex; gap: 12px; align-items: flex-start; }
-  .card .meta { flex: 1; min-width: 0; }
-  .card .name { font-weight: 600; }
-  .card .desc { color: var(--desc); font-size: 12px; margin-top: 3px; }
-  .card .tags { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
-  .tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--tag); color: var(--tag-fg); }
-  .tag.warn { background: var(--warn-bg); color: var(--warn-fg); }
-  .tag.on { background: var(--on-bg); color: var(--on-fg); }
-  .tag.off { background: var(--off-bg); color: var(--off-fg); }
-  input[type=checkbox] { width: 42px; height: 22px; appearance: none; background: var(--check-bg); border-radius: 999px; position: relative; cursor: pointer; flex: none; margin-top: 2px; transition: background .15s; }
-  input[type=checkbox]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--check-knob); transition: transform .15s; }
-  input[type=checkbox]:checked { background: var(--check-on); }
-  input[type=checkbox]:checked::after { transform: translateX(20px); }
-  button { background: var(--btn); color: var(--btn-fg); border: 0; border-radius: 7px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
-  button.ghost { background: var(--ghost); color: var(--btn-fg); }
-  :root[data-theme="light"] button.ghost { color: var(--ghost-fg); }
-  #status { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--status-bg); border: 1px solid var(--status-border); padding: 8px 16px; border-radius: 8px; font-size: 12px; opacity: 0; transition: opacity .2s; }
+  html,body { height: 100%; }
+  body { margin: 0; font: 13px/1.5 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--fg); }
+  button { font: inherit; cursor: pointer; }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ---------- 侧边栏 ---------- */
+  .side { width: 226px; flex: none; background: var(--side); border-right: 1px solid var(--side-border); display: flex; flex-direction: column; }
+  .brand { padding: 18px 16px 14px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid var(--side-border); }
+  .brand svg { flex: none; filter: drop-shadow(0 2px 6px rgba(208,52,63,.35)); }
+  .brand .bn { font-size: 14px; font-weight: 700; letter-spacing: .2px; }
+  .brand .bv { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  nav { padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .nav { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 13px; text-align: left; position: relative; }
+  .nav svg { flex: none; opacity: .85; }
+  .nav:hover { background: rgba(255,255,255,.05); color: var(--fg); }
+  .nav.active { background: linear-gradient(90deg, var(--accent-dim) 0%, rgba(208,52,63,.16) 100%); color: var(--fg); }
+  .nav.active::before { content: ""; position: absolute; left: -8px; top: 6px; bottom: 6px; width: 3px; border-radius: 3px; background: var(--accent-hi); }
+  .nav .grow { flex: 1; }
+  .sidefoot { padding: 10px 8px 12px; border-top: 1px solid var(--side-border); display: flex; flex-direction: column; gap: 8px; }
+  .svc-chip { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); padding: 2px 12px; }
+  .svc-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--nil); }
+  .svc-chip.run .dot { background: var(--on); box-shadow: 0 0 6px rgba(81,194,122,.7); }
+  .svc-chip.stop .dot { background: var(--accent-hi); box-shadow: 0 0 6px rgba(208,52,63,.6); }
+
+  /* ---------- 主区 ---------- */
+  main { flex: 1; overflow: auto; padding: 0 26px 80px; }
+  .tab { display: none; }
+  .tab.show { display: block; }
+  .thead { display: flex; align-items: baseline; gap: 12px; padding: 22px 2px 12px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .thead h2 { font-size: 17px; margin: 0; font-weight: 700; }
+  .thead .sp { flex: 1; }
+  .thead .ts { color: var(--muted); font-size: 12px; }
+  .chkline { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12.5px; user-select: none; }
+
+  /* 开关 */
+  input.tgl { width: 38px; height: 20px; appearance: none; background: #34343f; border-radius: 999px; position: relative; cursor: pointer; flex: none; transition: background .18s; margin: 0; }
+  input.tgl::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #b9b9c4; transition: transform .18s, background .18s; }
+  input.tgl:checked { background: var(--accent); }
+  input.tgl:checked::after { transform: translateX(18px); background: #fff; }
+  input.tgl:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* 复选框(方形) */
+  input.cbx { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; margin: 0; flex: none; }
+
+  /* ---------- 服务页 ---------- */
+  .wrap { display: flex; gap: 18px; align-items: flex-start; }
+  .srv-list { flex: 1; min-width: 0; }
+  .group { margin-bottom: 10px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--bg-soft); }
+  .gh { display: flex; align-items: center; gap: 9px; padding: 9px 12px; cursor: pointer; user-select: none; transition: background .12s; }
+  .gh:hover { background: rgba(255,255,255,.03); }
+  .gh .arrow { color: var(--faint); font-size: 10px; transition: transform .15s; flex: none; width: 10px; }
+  .group.collapsed .arrow { transform: rotate(-90deg); }
+  .gh .gdot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+  .gh .gn { font-weight: 600; font-size: 13.5px; }
+  .gh .gc { color: var(--faint); font-size: 11.5px; margin-left: auto; }
+  .gitems { overflow: hidden; }
+  .srv { display: flex; align-items: center; gap: 10px; padding: 7px 12px 7px 34px; border-top: 1px solid var(--border); }
+  .srv:hover { background: rgba(255,255,255,.025); }
+  .srv .ic { width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex: none; }
+  .srv .sn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .srv .sc { color: var(--faint); font-size: 11px; flex: none; }
+  .srv .ce { border: 0; background: transparent; color: var(--faint); font-size: 12px; padding: 2px 6px; border-radius: 6px; flex: none; }
+  .srv .ce:hover { color: var(--fg); background: rgba(255,255,255,.08); }
+
+  /* 右侧面板 */
+  .sidepanel { width: 320px; flex: none; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 18px; }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+  .ptitle { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 12px; }
+  .ctrl-row { display: flex; gap: 10px; align-items: center; }
+  .big-stop { flex: 1; display: flex; align-items: center; justify-content: center; gap: 9px; height: 46px; border: 0; border-radius: 9px; background: linear-gradient(135deg, #c42e3c, #a8222f); color: #fff; font-size: 15px; font-weight: 700; letter-spacing: .3px; transition: filter .12s, transform .05s; }
+  .big-stop:hover { filter: brightness(1.12); }
+  .big-stop:active { transform: scale(.98); }
+  .big-stop .sq { width: 15px; height: 15px; background: #fff; border-radius: 3px; }
+  .round-red { width: 46px; height: 46px; flex: none; border: 0; border-radius: 9px; background: linear-gradient(135deg, #c42e3c, #a8222f); color: #fff; font-size: 20px; transition: filter .12s, transform .2s; display: inline-flex; align-items: center; justify-content: center; }
+  .round-red:hover { filter: brightness(1.12); }
+  .round-red:active { transform: rotate(180deg); }
+  .round-red:disabled { opacity: .5; cursor: not-allowed; }
+  .hint { color: var(--faint); font-size: 11.5px; margin: 10px 2px 0; line-height: 1.5; }
+  .hint2 { color: var(--muted); font-size: 12px; margin: 6px 2px 0; min-height: 16px; }
+
+  .kvs { display: flex; flex-direction: column; }
+  .kv { display: flex; align-items: center; gap: 8px; padding: 6.5px 2px; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
+  .kv:last-child { border-bottom: 0; }
+  .kv .ki { color: var(--faint); font-size: 11px; width: 18px; text-align: center; flex: none; }
+  .kv .kk { color: var(--muted); flex: 1; }
+  .kv .kv2 {}
+  .v-on { color: var(--on); }
+  .v-off { color: var(--faint); }
+  .v-chip { display: inline-flex; align-items: center; gap: 5px; }
+  .v-chip::before { content:""; width: 6px; height: 6px; border-radius: 50%; display:inline-block; }
+  .v-chip.on::before { background: var(--on); }
+  .v-chip.off::before { background: var(--nil); }
+  .v-chip.dim::before { background: var(--faint); }
+
+  /* ---------- 设置页 ---------- */
+  .sett { max-width: 760px; }
+  .sect { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+  .sect .sh { padding: 12px 16px; font-size: 13px; font-weight: 700; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
+  .srow { display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid var(--border); }
+  .srow:last-child { border-bottom: 0; }
+  .srow .slbl { flex: 1; color: var(--fg); font-size: 13px; }
+  .srow .snote { color: var(--faint); font-size: 11px; margin-top: 2px; }
+  .radios { display: flex; gap: 4px; }
+  .radios label { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); cursor: pointer; font-size: 12px; transition: all .12s; }
+  .radios label input { accent-color: var(--accent); margin: 0; }
+  .radios label:has(input:checked) { border-color: var(--accent); color: var(--fg); background: var(--accent-dim); }
+  .srow input[type=text] { background: var(--bg); border: 1px solid var(--border); color: var(--fg); border-radius: 8px; padding: 7px 11px; width: 220px; font: inherit; }
+  .srow input[type=text]:focus { outline: none; border-color: var(--accent); }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
+  .tools button { border: 1px solid var(--border); background: var(--bg-soft); color: var(--muted); border-radius: 8px; padding: 7px 13px; font-size: 12.5px; }
+  .tools button:hover { color: var(--fg); border-color: var(--accent); }
+  .tools button.danger { background: var(--accent-dim); color: var(--off); border-color: transparent; }
+  .savebar { display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
+  .savebtn { border: 0; border-radius: 8px; background: linear-gradient(135deg, #c42e3c, #a8222f); color: #fff; font-weight: 700; padding: 9px 20px; font-size: 13px; }
+  .savebtn:hover { filter: brightness(1.1); }
+  .savebtn:disabled { opacity: .5; cursor: not-allowed; }
+  .savebar .snote { color: var(--faint); font-size: 11.5px; }
+
+  /* ---------- 日志页 ---------- */
+  .term { background: var(--term-bg); border: 1px solid var(--term-border); border-radius: 10px; overflow: auto; height: calc(100vh - 190px); padding: 12px 14px; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
+  .tl { white-space: pre-wrap; word-break: break-all; color: #c7c7cf1; }
+  .tl .ts { color: var(--ts); }
+  .tl .ip { color: #e69fb0; }
+  .tl .num { color: #8fd4a9; }
+  .term .empty { color: var(--faint); padding: 20px 0; text-align: center; }
+
+  /* ---------- 关于页 ---------- */
+  .about { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 160px); }
+  .acard { width: min(560px, 94%); background: var(--card); border: 1px solid var(--border); border-radius: 16px; text-align: center; padding: 44px 40px 30px; box-shadow: var(--shadow); }
+  .acard > svg { filter: drop-shadow(0 4px 14px rgba(208,52,63,.4)); }
+  .aname { font-size: 26px; font-weight: 800; letter-spacing: .5px; margin-top: 16px; }
+  .aver { color: var(--muted); margin-top: 8px; font-size: 13.5px; }
+  .aupd { margin-top: 10px; font-size: 14px; }
+  .aupd a { color: var(--accent-hi); font-weight: 600; text-decoration: none; }
+  .aupd a:hover { text-decoration: underline; }
+  .aupd.latest { color: var(--on); }
+  .aauthor { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 6px 14px; border-radius: 999px; background: var(--bg-soft); border: 1px solid var(--border); color: var(--muted); font-size: 12.5px; }
+  .aauthor .adot { width: 8px; height: 8px; border-radius: 50%; background: var(--on); box-shadow: 0 0 6px rgba(81,194,122,.8); }
+  .alic { margin-top: 22px; color: var(--faint); font-size: 11px; line-height: 1.9; border-top: 1px dashed var(--border); padding-top: 16px; }
+
+  /* ---------- toast ---------- */
+  #status { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); color: var(--fg); padding: 9px 18px; border-radius: 999px; font-size: 12.5px; box-shadow: var(--shadow); opacity: 0; transition: opacity .2s; z-index: 50; white-space: nowrap; max-width: 86vw; overflow: hidden; text-overflow: ellipsis; }
   #status.show { opacity: 1; }
-  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 10; }
+
+  /* ---------- 模态 ---------- */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 40; }
   .modal-backdrop.show { display: flex; }
-  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 12px; width: min(720px, 92vw); max-height: 86vh; overflow: auto; padding: 18px 20px 20px; }
-  .modal h3 { margin: 0 0 4px; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 14px; width: min(720px, 92vw); max-height: 86vh; overflow: auto; padding: 18px 20px 20px; box-shadow: var(--shadow); }
+  .modal h3 { margin: 0 0 4px; font-size: 15px; }
   .modal .hint { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+  .modal .row { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+  .modal textarea { width: 100%; min-height: 140px; font: 12px/1.45 ui-monospace, monospace; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; resize: vertical; }
   .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-  .tabs button { background: var(--ghost); opacity: .75; padding: 5px 12px; font-size: 12px; }
-  .tabs button.active { opacity: 1; }
-  textarea { width: 100%; min-height: 120px; font: 12px/1.45 ui-monospace, monospace; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; resize: vertical; }
-  .modal .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
-  .modal input[type=text], .modal input[type=number] { background: var(--tag); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; box-sizing: border-box; min-width: 0; }
-  .modal input[type=text] { width: 100%; }
-  .modal input[type=number] { width: 100%; }
-  .sec { margin: 16px 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-  .sec.danger { color: #d98a8a; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-  .grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
-  .grid .chk { flex-direction: row; align-items: center; gap: 8px; margin-top: 16px; }
-  button.danger { background: #a93b3b; color: #fff; border: none; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
-  button.danger:hover { filter: brightness(1.1); }
-  .modal .count { color: var(--muted); font-size: 12px; }
-  button.mini { padding: 2px 9px; font-size: 12px; background: var(--ghost); }
+  .tabs button { border: 1px solid var(--border); background: var(--bg-soft); color: var(--muted); border-radius: 8px; padding: 5px 12px; font-size: 12px; }
+  .tabs button.active { border-color: var(--accent); color: var(--fg); }
+  .modal button { border: 1px solid var(--border); background: var(--accent); color: #fff; border-radius: 8px; padding: 8px 16px; font-size: 13px; }
+  .modal button.ghost { background: var(--bg-soft); color: var(--muted); }
+  .modal button.ghost:hover { color: var(--fg); }
+  .count { color: var(--faint); font-size: 12px; }
+
+  /* 滚动条 */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #33333e; border-radius: 8px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #454550; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  @media (max-width: 900px) {
+    .side { width: 60px; }
+    .brand .bt, .nav .navtxt, .sidefoot .svc-chip { display: none; }
+    .sidepanel { width: 260px; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>steam302-web</h1>
-  <span class="sub" id="summary">加载中…</span>
-  <span class="actions">
-    <button class="ghost" id="blacklist">域名黑名单</button>
-    <button class="ghost" id="profile">复制代理参数</button>
-    <button class="ghost" id="theme">☾ 暗色</button>
-    <button class="ghost" id="regen">重新生成配置</button>
-    <button class="ghost" id="apply">一键应用</button>
-    <button class="ghost" id="settings">设置</button>
-  </span>
-</header>
-<main id="app"></main>
+<div class="shell">
+  <aside class="side">
+    <div class="brand">
+      <svg width="38" height="38" viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="20" fill="#d0343f"/>
+        <path d="M15 24a9 9 0 1 0 9-9" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="15" cy="24" r="3.4" fill="#fff"/>
+        <rect x="29" y="17" width="4" height="15" rx="2" fill="#fff"/><rect x="24" y="21" width="14" height="4" rx="2" fill="#fff"/>
+      </svg>
+      <div class="bt"><div class="bn">Steamcommunity 302</div><div class="bv">Web 版 · <span id="sideVer">…</span></div></div>
+    </div>
+    <nav>
+      <button class="nav active" data-tab="services">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span class="navtxt">服务</span>
+      </button>
+      <button class="nav" data-tab="settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></svg>
+        <span class="navtxt">设置</span>
+      </button>
+      <button class="nav" data-tab="logs">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>
+        <span class="navtxt">日志</span>
+      </button>
+      <button class="nav" data-tab="about">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/></svg>
+        <span class="navtxt">发现新版本</span>
+      </button>
+    </nav>
+    <div class="sidefoot">
+      <div class="svc-chip" id="svcChip"><span class="dot"></span><span id="svcChipText">检测中…</span></div>
+      <button class="nav" id="navExit">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 8l-4 4 4 4M6 12h10"/></svg>
+        <span class="navtxt">退出 UI</span>
+      </button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- ================= 服务 ================= -->
+    <section id="tab-services" class="tab show">
+      <div class="thead">
+        <h2>服务列表</h2>
+        <span class="ts" id="srvTs"></span>
+        <span class="sp"></span>
+        <label class="chkline"><span>全选</span><input type="checkbox" class="cbx" id="selAll"></label>
+      </div>
+      <div class="wrap">
+        <div class="srv-list" id="srvList"></div>
+        <div class="sidepanel">
+          <div class="panel">
+            <div class="ptitle">服务控制</div>
+            <div class="ctrl-row">
+              <button class="big-stop" id="btnStop"><span class="sq"></span>停止服务</button>
+              <button class="round-red" id="btnReload" title="重载服务（重新生成并应用配置）">⟳</button>
+            </div>
+            <p class="hint">对服务状态的任何更改，需在重载服务后生效。<br>停止后将终止 Caddy / 端口转发；WebUI 本身独立存活。</p>
+            <p class="hint2" id="ctrlMsg"></p>
+          </div>
+          <div class="panel">
+            <div class="ptitle">网络监听 / 设置信息</div>
+            <div class="kvs" id="netInfo"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 设置 ================= -->
+    <section id="tab-settings" class="tab">
+      <div class="thead"><h2>设置</h2><span class="sp"></span></div>
+      <div class="sett">
+
+        <div class="sect">
+          <div class="sh">启动行为</div>
+          <div class="srow">
+            <div class="slbl">开机自动运行
+              <div class="snote">后台服务 = 托管于 systemd；服务器环境无前台桌面，前台运行仅记录偏好。</div>
+            </div>
+            <div class="radios">
+              <label><input type="radio" name="ast" value="foreground"> 前台运行</label>
+              <label><input type="radio" name="ast" value="service"> 后台服务(无界面)</label>
+              <label><input type="radio" name="ast" value="disabled"> 禁用</label>
+            </div>
+          </div>
+          <div class="srow">
+            <div class="slbl">程序启动后自动开启服务</div>
+            <input type="checkbox" class="tgl" id="stStart">
+          </div>
+          <div class="srow">
+            <div class="slbl">启动服务后自动更新配置</div>
+            <input type="checkbox" class="tgl" id="stAutoUpd">
+          </div>
+          <div class="srow">
+            <div class="slbl">退出UI时同步退出后端服务</div>
+            <input type="checkbox" class="tgl" id="stExit">
+          </div>
+          <div class="srow">
+            <div class="slbl">启动服务后自动最小化到托盘</div>
+            <input type="checkbox" class="tgl" id="stTray">
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="sh">本地监听设置</div>
+          <div class="srow">
+            <div class="slbl">本地监听 IP</div>
+            <input type="text" id="stBind" spellcheck="false" placeholder="127.0.0.1">
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="sh">高级（Web 版扩展工具）</div>
+          <div class="tools">
+            <button id="stProf">复制代理参数</button>
+            <button id="stBlk">域名黑名单</button>
+            <button id="stRule">规则编辑器</button>
+            <button id="stRegen">重新生成配置</button>
+            <button id="stResetLeaf">重置网站证书</button>
+            <button id="stResetRoot">重置根证书</button>
+            <button class="danger" id="stResetFactory">恢复出厂设置</button>
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="savebar">
+            <button class="savebtn" id="stSave">保存设置</button>
+            <span class="snote" id="stNote">「开机自动运行」切换会自动同步 systemd 自启状态。</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================= 日志 ================= -->
+    <section id="tab-logs" class="tab">
+      <div class="thead">
+        <h2>服务运行日志</h2>
+        <span class="sp"></span>
+        <label class="chkline"><input type="radio" name="logmode" value="1000" checked> 显示最后1000行</label>
+        <label class="chkline" style="margin-left:14px;"><input type="radio" name="logmode" value="all"> 显示所有</label>
+        <span class="ts" id="logSrc" style="margin-left:14px;"></span>
+      </div>
+      <div class="term" id="term"><div class="empty">日志加载中…</div></div>
+    </section>
+
+    <!-- ================= 关于 ================= -->
+    <section id="tab-about" class="tab">
+      <div class="thead"><h2>发现新版本</h2><span class="sp"></span></div>
+      <div class="about">
+        <div class="acard">
+          <svg width="92" height="92" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="20" fill="#d0343f"/>
+            <path d="M15 24a9 9 0 1 0 9-9" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+            <circle cx="15" cy="24" r="3.4" fill="#fff"/>
+            <rect x="29" y="17" width="4" height="15" rx="2" fill="#fff"/><rect x="24" y="21" width="14" height="4" rx="2" fill="#fff"/>
+          </svg>
+          <div class="aname">Steamcommunity 302</div>
+          <div class="aver" id="aboutVer">…</div>
+          <div class="aupd" id="aboutUpd"></div>
+          <div class="aauthor"><span class="adot"></span><span id="aboutAuthor">steam302-web 开发组</span></div>
+          <div class="alic">
+            <div>steam302-web — 开源 Web 版服务端（GitHub: cyqmq/steam302-web）</div>
+            <div>Caddy (Apache-2.0 License)</div>
+            <div>界面复刻参考自原版 Steamcommunity 302 (By.羽翼城 | Dogfight360)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
 <div id="status"></div>
+
+<!-- 代理参数 -->
 <div class="modal-backdrop" id="backdrop">
   <div class="modal">
     <h3>代理参数</h3>
-    <div class="hint" id="profHint">面向客户端的接线方式（Hosts 劫持 / curl / PAC / 环境变量）。</div>
+    <div class="hint" id="profHint"></div>
     <div class="tabs" id="tabs"></div>
     <textarea id="profTxt" spellcheck="false" readonly></textarea>
     <div class="row">
@@ -109,11 +379,13 @@
     </div>
   </div>
 </div>
+
+<!-- 规则 / 黑名单 -->
 <div class="modal-backdrop" id="edBackdrop">
   <div class="modal">
-    <h3 id="edTitle">编辑规则</h3>
-    <div class="hint" id="edHint">修改保存后自动校验并重新生成 Caddyfile / hosts。</div>
-    <textarea id="edTxt" spellcheck="false" style="min-height:260px;"></textarea>
+    <h3 id="edTitle">编辑器</h3>
+    <div class="hint" id="edHint"></div>
+    <textarea id="edTxt" spellcheck="false" style="min-height:280px;"></textarea>
     <div class="row">
       <button id="edSave">保存并重生成</button>
       <span class="count" id="edCount"></span>
@@ -121,376 +393,427 @@
     </div>
   </div>
 </div>
-<div class="modal-backdrop" id="setBackdrop">
-  <div class="modal" style="min-width:640px;">
-    <h3>设置</h3>
-    <div class="hint">修改后点「保存设置」写入 config/env.json；重启类操作见下方按钮。证书/自启/恢复出厂需 root（本机 webui 常以 root 运行）。</div>
-    <div style="max-height:60vh;overflow:auto;padding-right:6px;">
-      <div class="sec">基础</div>
-      <div class="grid">
-        <label>本地监听 IP <input id="stBind" type="text" placeholder="127.0.0.1"></label>
-        <label>s302fwd 日志轮转(字节) <input id="stLog" type="number" min="0" step="1048576"></label>
-        <label>hosts 快照保留数 <input id="stKeep" type="number" min="0" max="10000"></label>
-      </div>
-      <div class="sec">证书（genpki 未带参数时的默认有效期）</div>
-      <div class="grid">
-        <label>CA 有效期(年) <input id="stCA" type="number" min="1" max="100"></label>
-        <label>叶证书有效期(天) <input id="stLeaf" type="number" min="1" max="3650"></label>
-        <div class="row" style="margin-top:14px;">
-          <button class="ghost" id="stResetRoot">重置根证书</button>
-          <button class="ghost" id="stResetLeaf">重置网站证书</button>
-          <span class="count" id="stCertInfo"></span>
-        </div>
-      </div>
-      <div class="sec">CDN 优选（全局默认，规则内可覆盖）</div>
-      <div class="grid">
-        <label class="chk"><input id="stPrefEn" type="checkbox"> 启用优选</label>
-        <label class="chk"><input id="stPrefSpeed" type="checkbox"> 测速</label>
-        <label>限速 max_mbps <input id="stPrefMb" type="number" min="0" step="1"></label>
-        <label>并行数 <input id="stPrefPar" type="number" min="1"></label>
-        <label>延迟超时(ms) <input id="stPrefLt" type="number" min="100"></label>
-        <label>Top N <input id="stPrefTop" type="number" min="1"></label>
-        <label>每 CIDR 采样 <input id="stPrefSpl" type="number" min="1"></label>
-      </div>
-      <div class="sec">系统</div>
-      <div class="grid">
-        <label class="chk"><input id="stAuto" type="checkbox"> 开机自启（systemd）</label>
-      </div>
-      <div class="sec danger">危险区</div>
-      <button class="danger" id="stResetFactory">恢复出厂设置（停服＋撤自启＋撤销 hosts＋清理生成物；保留规则/env）</button>
-    </div>
-    <div class="row" style="margin-top:12px;">
-      <button id="stSave">保存设置</button>
-      <span class="count" id="stCount"></span>
-      <button class="ghost" id="stClose" style="margin-left:auto;">关闭</button>
-    </div>
-  </div>
-</div>
+
 <script>
-const app = document.getElementById("app");
-const status = document.getElementById("status");
+const $ = id => document.getElementById(id);
+const app = $("app") || null;
 let rules = [];
+let status = null;
 
-function applyTheme(theme) {
-  if (theme !== "light") theme = "dark";
-  document.documentElement.dataset.theme = theme;
-  localStorage.setItem("theme", theme);
-  document.getElementById("theme").textContent = theme === "light" ? "☀ 亮色" : "☾ 暗色";
-}
-
-document.getElementById("theme").onclick = () => {
-  const cur = document.documentElement.dataset.theme;
-  applyTheme(cur === "light" ? "dark" : "light");
+const GROUP_META = {
+  steam: { label: "Steam", color: "#4a9de6" },
+  game:  { label: "游戏 / 平台", color: "#e0a52f" },
+  image: { label: "图片 / 素材 CDN", color: "#58c88f" },
+  chat:  { label: "聊天通讯", color: "#9d7bff" },
+  media: { label: "媒体 / 直播", color: "#e5637a" },
+  misc:  { label: "其它", color: "#7d8aa5" },
 };
-applyTheme(localStorage.getItem("theme") || "dark");
-
-const backdrop = document.getElementById("backdrop");
-const profTxt = document.getElementById("profTxt");
-const tabsEl = document.getElementById("tabs");
-let profile = null, profKey = "hosts";
-let profButtons = [];
-
-function showProfile() {
-  const tabs = [
-    ["hosts", "Hosts 劫持"],
-    ["curl", "curl 验证"],
-    ["pac", "PAC"],
-    ["env", "环境变量"],
-  ];
-  profButtons = [];
-  tabsEl.innerHTML = "";
-  for (const [key, label] of tabs) {
-    const b = document.createElement("button");
-    b.textContent = label;
-    b.onclick = () => { profKey = key; renderProfile(); };
-    tabsEl.appendChild(b);
-    profButtons.push(b);
-  }
-  document.getElementById("profHint").textContent =
-    `绑定 ${profile.bind_ip}，HTTPS :${profile.https_port} / HTTP :${profile.http_port}，CA ${profile.ca_exists ? "已生成" : "缺失"} (${profile.ca_path})`;
-  renderProfile();
-  backdrop.classList.add("show");
+function gmeta(g) {
+  if (GROUP_META[g]) return GROUP_META[g];
+  const cap = g.charAt(0).toUpperCase() + g.slice(1);
+  return { label: cap, color: "#7d8aa5" };
 }
 
-const PROF_MAP = { hosts: "hosts_txt", curl: "curl_cmd", pac: "pac", env: "env" };
+/* ---------- toast ---------- */
+function toast(msg) { const s = $("status"); s.textContent = msg; s.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => s.classList.remove("show"), 3000); }
 
-function renderProfile() {
-  const key = profButtons.length ? PROF_MAP[profKey] : "hosts_txt";
-  profTxt.value = profile[key] || "";
-  document.getElementById("profCount").textContent = `${profTxt.value.length} 字符 · ${profile.hosts.length} 个域名`;
-  profButtons.forEach((b, i) => b.classList.toggle("active", ["hosts", "curl", "pac", "env"][i] === profKey));
-}
-
-document.getElementById("profile").onclick = async () => {
-  try {
-    profile = await api("GET", "/api/profile");
-    profKey = "hosts";
-    showProfile();
-  } catch (e) { toast("加载失败: " + e.message); }
-};
-document.getElementById("profCopy").onclick = async () => {
-  await navigator.clipboard.writeText(profTxt.value).catch(() => showFallbackCopy());
-  toast("已复制");
-};
-document.getElementById("profClose").onclick = () => backdrop.classList.remove("show");
-backdrop.addEventListener("click", e => { if (e.target === backdrop) backdrop.classList.remove("show"); });
-function showFallbackCopy() {
-  profTxt.removeAttribute("readonly");
-  profTxt.select();
-  document.execCommand("copy");
-  profTxt.setAttribute("readonly", "");
-}
-
-function toast(msg) {
-  status.textContent = msg;
-  status.classList.add("show");
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => status.classList.remove("show"), 2600);
-}
-
+/* ---------- api ---------- */
 async function api(method, url, body) {
-  const res = await fetch(url, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const res = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
 }
 
-function render() {
+/* ---------- 标签页 ---------- */
+const TABS = ["services", "settings", "logs", "about"];
+function showTab(t) {
+  TABS.forEach(x => {
+    $("tab-" + x).classList.toggle("show", x === t);
+    document.querySelector(`.nav[data-tab="${x}"]`).classList.toggle("active", x === t);
+  });
+  if (t === "logs") startLogging(); else stopLogging();
+  if (t === "services") refreshStatus();
+}
+document.querySelectorAll(".nav[data-tab]").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+/* ---------- 服务页面 ---------- */
+function updateSelAll() {
+  const all = rules.length > 0 && rules.every(r => r.enabled);
+  $("selAll").checked = all;
+  $("selAll").indeterminate = !all && rules.some(r => r.enabled);
+}
+function renderServices() {
   const groups = {};
   for (const r of rules) (groups[r.group] ||= []).push(r);
-  app.innerHTML = "";
+  const list = $("srvList");
+  list.innerHTML = "";
   for (const g of Object.keys(groups).sort()) {
-    const h = document.createElement("h2");
-    h.textContent = g;
-    app.appendChild(h);
-    for (const r of groups[g]) app.appendChild(card(r));
+    const items = groups[g];
+    const meta = gmeta(g);
+    const block = document.createElement("div");
+    block.className = "group";
+    const allOn = items.every(r => r.enabled);
+    const someOn = items.some(r => r.enabled);
+    const gh = document.createElement("div");
+    gh.className = "gh";
+    gh.innerHTML = `<span class="arrow">▾</span><span class="gdot" style="background:${meta.color}"></span>
+      <span class="gn">${meta.label}</span><span class="gc">${items.length} 项</span>`;
+    const ge = document.createElement("input");
+    ge.type = "checkbox"; ge.className = "cbx"; ge.checked = allOn; ge.indeterminate = someOn && !allOn;
+    gh.appendChild(ge);
+    gh.onclick = function (e) { if (e.target !== ge) block.classList.toggle("collapsed"); };
+    ge.onclick = e => e.stopPropagation();
+    ge.onchange = async () => {
+      const want = ge.checked; ge.disabled = true;
+      const changed = items.filter(r => r.enabled !== want);
+      const cbs = block.querySelectorAll(".srv input.cbx");
+      cbs.forEach(c => c.checked = want);
+      try {
+        for (const r of changed) await api("POST", `/api/rules/${r.id}`, { enabled: want });
+        for (const r of changed) r.enabled = want;
+        renderServices(); refreshStatus();
+        toast(`已${want ? "开启" : "关闭"}分组「${meta.label}」${changed.length} 项，重载后生效`);
+      } catch (e) { renderServices(); toast("失败: " + e.message); }
+      finally { updateSelAll(); }
+    };
+    block.appendChild(gh);
+    const itemsEl = document.createElement("div");
+    itemsEl.className = "gitems";
+    for (const r of items) itemsEl.appendChild(ruleRow(r, meta.color));
+    block.appendChild(itemsEl);
+    list.appendChild(block);
   }
-  const on = rules.filter(r => r.enabled).length;
-  document.getElementById("summary").textContent =
-    `${rules.length} 条规则，${on} 条启用`;
+  updateSelAll();
 }
 
-function card(r) {
-  const el = document.createElement("div");
-  el.className = "card";
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  const tags = [];
-  tags.push(`<span class="tag">${r.id}</span>`);
-  tags.push(`<span class="tag">${r.host_count} 域名</span>`);
-  if (r.missing_files && r.missing_files.length)
-    tags.push(`<span class="tag warn">缺文件 ${r.missing_files.length}</span>`);
-  meta.innerHTML = `<div class="name">${r.name}</div>
-    <div class="desc">${r.description || ""}</div>
-    <div class="tags">${tags.join("")}</div>`;
+function ruleRow(r, color) {
+  const row = document.createElement("label");
+  row.className = "srv";
   const cb = document.createElement("input");
-  cb.type = "checkbox";
-  cb.checked = r.enabled;
-  cb.title = r.enabled ? "已启用" : "已关闭";
+  cb.type = "checkbox"; cb.className = "cbx"; cb.checked = r.enabled;
+  const ic = document.createElement("span");
+  ic.className = "ic"; ic.style.background = color;
+  ic.textContent = r.name.charAt(0);
+  const sn = document.createElement("span"); sn.className = "sn"; sn.textContent = r.name;
+  const ct = document.createElement("span"); ct.className = "sc";
+  ct.textContent = `${r.host_count} 域名`;
+  const ed = document.createElement("button"); ed.type = "button"; ed.className = "ce"; ed.textContent = "✎"; ed.title = "编辑规则 " + r.id;
+  ed.onclick = e => { e.preventDefault(); e.stopPropagation(); openEditor(r.id); };
   cb.onchange = async () => {
     cb.disabled = true;
     try {
       const data = await api("POST", `/api/rules/${r.id}`, { enabled: cb.checked });
       r.enabled = cb.checked;
       const reg = data.regen || {};
-      toast(`已${cb.checked ? "启用" : "关闭"} ${r.id}；重生成 ${reg.rules} 条规则，校验 ${reg.validate}`);
-      render();
-    } catch (e) {
-      cb.checked = r.enabled;
-      toast("失败: " + e.message);
-    } finally {
-      cb.disabled = false;
-    }
+      updateSelAll(); refreshStatus();
+      toast(`已${cb.checked ? "开启" : "关闭"} ${r.name}；重生成 ${reg.rules} 条，校验 ${reg.validate}`);
+    } catch (e) { cb.checked = r.enabled; toast("失败: " + e.message); }
+    finally { cb.disabled = false; }
   };
-  const edit = document.createElement("button");
-  edit.className = "mini";
-  edit.textContent = "✎ 编辑";
-  edit.title = "编辑规则 " + r.id;
-  edit.onclick = () => openEditor(r.id);
-  el.appendChild(meta);
-  el.append(edit, cb);
-  return el;
+  row.append(cb, ic, sn, ct, ed);
+  return row;
 }
 
-async function load() {
+/* ---------- 网络监听信息 ---------- */
+const chip = (on, txt) => { const s = document.createElement("span"); s.className = "v-chip " + (on ? "on" : "off"); s.textContent = txt; return s; };
+
+function refreshNetInfo() {
+  const kvbox = $("netInfo");
+  kvbox.innerHTML = "";
+  if (!status) return;
+  const kv = (icon, key, val) => { const k = document.createElement("div"); k.className = "kv"; k.innerHTML = `<span class="ki">${icon}</span><span class="kk">${key}</span>`; k.appendChild(val); return k; };
+  const plainA = txt => { const s = document.createElement("span"); s.className = "v-off"; s.textContent = txt; return s; };
+  kvbox.appendChild(kv("\u25CD", "监听地址", plainA(status.bind_ip + ":" + (status.https_port || 25584))));
+  kvbox.appendChild(kv("\u21C4", "监听端口", plainA(`${status.http_port || 24196} / ${status.https_port || 25584} (HTTP/HTTPS)`)));
+  kvbox.appendChild(kv("\u2261", "修改Hosts", chip(status.hosts_on, status.hosts_on ? "已开启" : "已禁用")));
+  kvbox.appendChild(kv("\u25C8", "DNS重定向", chip(status.dns_redirect, status.dns_redirect ? "已开启" : "已禁用")));
+  kvbox.appendChild(kv("\u21C5", "自动代理", chip(status.auto_proxy, status.auto_proxy ? "已开启" : "已禁用")));
+  kvbox.appendChild(kv("\u21BB", "系统代理", plainA(status.system_proxy || "不处理")));
+  kvbox.appendChild(kv("\u26A1", "CDN优选", chip(status.cdn_prefer, status.cdn_prefer ? `已开启:${status.cdn_pinned}` : "已禁用")));
+  kvbox.appendChild(kv("\u25B6", "开机自启", plainA(modeLabel(status.autostart_mode))));
+  kvbox.appendChild(kv("\u2699", "自启服务", chip(status.start_service, status.start_service ? "已开启" : "已关闭")));
+  kvbox.appendChild(kv("\u21BB", "自动更新", chip(status.auto_update, status.auto_update ? "已开启" : "已关闭")));
+  kvbox.appendChild(kv("\u2295", "上游域名", plainA(status.upstream_domains || "—")));
+  kvbox.appendChild(kv("\u229C", "支持开发", chip(status.dev_support, status.dev_support ? "已开启" : "已禁用")));
+}
+function modeLabel(m) { return m === "service" ? "后台服务(无界面)" : m === "foreground" ? "前台运行" : "禁用"; }
+
+async function refreshStatus() {
   try {
-    const data = await api("GET", "/api/rules");
-    rules = data.rules || [];
-    render();
-  } catch (e) {
-    toast("加载失败: " + e.message);
+    status = await api("GET", "/api/status");
+    $("srvTs").textContent = status.timestamp;
+    refreshNetInfo();
+    const alive = status.services.fwd === "active" || status.services.caddy === "active";
+    const chipEl = $("svcChip");
+    chipEl.classList.toggle("run", alive);
+    chipEl.classList.toggle("stop", !alive);
+    $("svcChipText").textContent = alive ? "服务运行中" : "服务已停止";
+  } catch (e) { /* 状态面板静默降级 */ }
+}
+
+/* ---------- 服务控制 ---------- */
+$("btnStop").onclick = async () => {
+  if (!confirm("停止服务将终止 Caddy 与 80/443 端口转发，本机加速代理停止；WebUI 不受影响，可点「⟳ 重载服务」恢复。确定停止？")) return;
+  const b = $("btnStop"); b.disabled = true;
+  try {
+    const res = await api("POST", "/api/services/stop");
+    const stopped = (res.stopped || []).map(x => x.replace(/\.service$/, "")).join("、");
+    $("ctrlMsg").textContent = `已停止：${stopped || "无运行中服务"}`;
+    toast("服务已停止");
+    refreshStatus();
+  } catch (e) { toast("停止失败: " + e.message); }
+  finally { b.disabled = false; }
+};
+$("btnReload").onclick = async () => {
+  const b = $("btnReload"); b.disabled = true;
+  const m = $("ctrlMsg"); m.textContent = "正在重新生成并应用配置…";
+  try {
+    const data = await api("POST", "/api/apply");
+    if (data.applied) {
+      const line = (data.out || "").trim().split("\n").pop() || "";
+      m.textContent = "已重载配置并重启服务：" + line;
+      toast("已重载服务 ✓");
+    } else {
+      m.textContent = "应用未执行：" + (data.error || "缺少 root 权限") + "（可手动 sudo bin/apply）";
+      toast("需 root 权限执行 apply");
+    }
+    refreshStatus();
+  } catch (e) { m.textContent = "重载失败：" + e.message; }
+  finally { b.disabled = false; }
+};
+
+/* ---------- 日志 ---------- */
+let logMode = "1000", logTimer = null, logSeen = 0;
+const term = $("term");
+function stopLogging() { if (logTimer) clearInterval(logTimer); logTimer = null; }
+function startLogging() {
+  stopLogging(); logSeen = 0;
+  tick(); logTimer = setInterval(tick, 2000);
+}
+async function tick() {
+  let data;
+  try { data = await api("GET", "/api/logs?all=" + (logMode === "all" ? 1 : 0)); }
+  catch (e) { term.innerHTML = `<div class="empty">日志读取失败：${e.message}</div>`; return; }
+  $("logSrc").textContent = data.file ? ("来源: " + data.file) : "";
+  const lines = data.lines || [];
+  if (logMode === "all") {
+    term.innerHTML = "";
+    for (const ln of lines) term.appendChild(lineEl(ln));
+    logSeen = lines.length;
+    term.scrollTop = term.scrollHeight;
+    return;
+  }
+  if (lines.length < logSeen) logSeen = 0; // 轮转/清空后重来
+  for (let i = logSeen; i < lines.length; i++) { term.appendChild(lineEl(lines[i])); }
+  logSeen = lines.length;
+  while (term.childNodes.length > 1000) term.removeChild(term.firstChild);
+  term.scrollTop = term.scrollHeight;
+}
+function lineEl(txt) {
+  const d = document.createElement("div"); d.className = "tl";
+  const m = txt.match(/^(\[[^\]]*\])\s?(.*)$/);
+  if (m) { const s = document.createElement("span"); s.className = "ts"; s.textContent = m[1]; d.appendChild(s); d.appendChild(document.createTextNode(" " + m[2])); }
+  else d.textContent = txt;
+  return d;
+}
+document.querySelectorAll('input[name="logmode"]').forEach(r => r.onchange = () => { logMode = r.value; logSeen = 0; term.innerHTML = ""; tick(); });
+
+/* ---------- 设置 ---------- */
+async function loadSettingsSilent() {
+  const s = await api("GET", "/api/settings");
+  applySettings(s);
+  return s;
+}
+function applySettings(s) {
+  $("stBind").value = s.bind_ip || "127.0.0.1";
+  const radio = document.querySelector(`input[name="ast"][value="${s.autostart_mode || "disabled"}"]`);
+  if (radio) radio.checked = true; else document.querySelector('input[name="ast"][value="disabled"]').checked = true;
+  $("stStart").checked = !!s.start_service;
+  $("stAutoUpd").checked = !!s.auto_update;
+  $("stExit").checked = !!s.exit_sync;
+  $("stTray").checked = !!s.minimize_tray;
+}
+async function loadSettings() {
+  try { applySettings(await api("GET", "/api/settings")); }
+  catch (e) { toast("读取设置失败: " + e.message); }
+}
+/* 保存 */
+$("stSave").onclick = async () => {
+  const b = $("stSave"); b.disabled = true;
+  const mode = document.querySelector('input[name="ast"]:checked')?.value || "disabled";
+  const body = {
+    bind_ip: $("stBind").value.trim() || undefined,
+    autostart_mode: mode,
+    start_service: $("stStart").checked,
+    auto_update: $("stAutoUpd").checked,
+    exit_sync: $("stExit").checked,
+    minimize_tray: $("stTray").checked,
+  };
+  let msg = "设置已保存";
+  try {
+    await api("PUT", "/api/settings", body);
+    if (mode !== "foreground") {
+      try {
+        await api("POST", "/api/settings/autostart", { enabled: mode === "service" });
+        msg += `；systemd 自启已${mode === "service" ? "开启(后台服务)" : "禁用"}`;
+      } catch (e) { msg += "（systemd 自启切换失败: " + e.message + "）"; }
+    } else {
+      msg += "（前台运行仅记录偏好，服务器环境请使用 后台服务/禁用）";
+    }
+    refreshStatus();
+    toast(msg);
+  } catch (e) { toast("保存失败: " + e.message); }
+  finally { b.disabled = false; }
+};
+
+/* ---------- 模态：代理参数 ---------- */
+let profile = null, profKey = "hosts", profButtons = [];
+const PROF_MAP = { hosts: "hosts_txt", curl: "curl_cmd", pac: "pac", env: "env" };
+function showProfile() {
+  const tabs = [["hosts", "Hosts 劫持"], ["curl", "curl 验证"], ["pac", "PAC"], ["env", "环境变量"]];
+  profButtons = [];
+  $("tabs").innerHTML = "";
+  for (const [key, label] of tabs) {
+    const b = document.createElement("button"); b.textContent = label;
+    b.onclick = () => { profKey = key; renderProfile(); };
+    $("tabs").appendChild(b); profButtons.push(b);
+  }
+  $("profHint").textContent = `绑定 ${profile.bind_ip}，HTTPS :${profile.https_port} / HTTP :${profile.http_port}，CA ${profile.ca_exists ? "已生成" : "缺失"} (${profile.ca_path})`;
+  renderProfile(); $("backdrop").classList.add("show");
+}
+function renderProfile() {
+  const key = profButtons.length ? PROF_MAP[profKey] : "hosts_txt";
+  $("profTxt").value = profile[key] || "";
+  $("profCount").textContent = `${$("profTxt").value.length} 字符 · ${profile.hosts.length} 个域名`;
+  profButtons.forEach((b, i) => b.classList.toggle("active", ["hosts", "curl", "pac", "env"][i] === profKey));
+}
+$("stProf").onclick = async () => { try { profile = await api("GET", "/api/profile"); profKey = "hosts"; showProfile(); } catch (e) { toast("加载失败: " + e.message); } };
+$("profCopy").onclick = async () => { await navigator.clipboard.writeText($("profTxt").value).catch(() => showFallbackCopy()); toast("已复制"); };
+$("profClose").onclick = () => $("backdrop").classList.remove("show");
+$("backdrop").addEventListener("click", e => { if (e.target === $("backdrop")) $("backdrop").classList.remove("show"); });
+function showFallbackCopy() { $("profTxt").removeAttribute("readonly"); $("profTxt").select(); document.execCommand("copy"); $("profTxt").setAttribute("readonly", ""); }
+
+/* ---------- 模态：规则编辑 / 黑名单 ---------- */
+let edMode = null, edId = null;
+function openModalMode(mode) {
+  $("edBackdrop").classList.add("show"); edMode = mode;
+  if (mode === "rule") {
+    $("edTitle").textContent = `编辑规则 ${edId}`;
+    $("edHint").textContent = "JSON 保存后自动校验并重生成；id 需与文件名一致，留空则取文件名。";
+  } else {
+    $("edTitle").textContent = "域名黑名单";
+    $("edHint").textContent = "每行一个域名（支持 *.example.com），保存后写 S302.hosts，点「⟳ 重载服务」同步到 /etc/hosts 并生效。";
   }
 }
+async function openEditor(id) {
+  try {
+    const data = await api("GET", `/api/rule/${id}`);
+    edId = id; $("edTxt").value = data.text;
+    $("edCount").textContent = `${$("edTxt").value.length} 字符`;
+    openModalMode("rule");
+  } catch (e) { toast("加载失败: " + e.message); }
+}
+async function openBlacklist() {
+  try {
+    const data = await api("GET", "/api/blacklist");
+    edId = null; $("edTxt").value = (data.domains || []).join("\n");
+    $("edCount").textContent = `${$("edTxt").value.split("\n").filter(l => l.trim()).length} 个域名`;
+    openModalMode("blacklist");
+  } catch (e) { toast("加载失败: " + e.message); }
+}
+$("stBlk").onclick = openBlacklist;
+$("stRule").onclick = () => {
+  const pick = rules[0];
+  if (!pick) { toast("暂无规则"); return; }
+  openEditor(pick.id);
+};
+$("edSave").onclick = async () => {
+  const b = $("edSave"); b.disabled = true;
+  try {
+    let res;
+    if (edMode === "rule") res = await api("PUT", `/api/rule/${edId}`, { text: $("edTxt").value });
+    else { const domains = $("edTxt").value.split("\n").map(l => l.trim()).filter(Boolean); res = await api("PUT", "/api/blacklist", { domains }); }
+    const reg = res.regen || {};
+    toast(`已保存；重生成 ${reg.rules} 条规则，caddy 校验 ${reg.validate}`);
+    $("edBackdrop").classList.remove("show"); load(); refreshStatus();
+  } catch (e) { toast("保存失败: " + e.message); }
+  finally { b.disabled = false; }
+};
+$("edClose").onclick = () => $("edBackdrop").classList.remove("show");
+$("edBackdrop").addEventListener("click", e => { if (e.target === $("edBackdrop")) $("edBackdrop").classList.remove("show"); });
 
-document.getElementById("regen").onclick = async () => {
+/* ---------- 全选 ---------- */
+$("selAll").onchange = async () => {
+  const want = $("selAll").checked; $("selAll").disabled = true;
+  try {
+    const data = await api("POST", "/api/rules/bulk", { enabled: want });
+    for (const r of rules) r.enabled = want;
+    renderServices(); refreshStatus();
+    toast(`已${want ? "全部开启" : "全部关闭"} ${data.count} 项（重载后生效）`);
+  } catch (e) { toast("失败: " + e.message); renderServices(); }
+  finally { $("selAll").disabled = false; }
+};
+
+/* ---------- 关于页 ---------- */
+async function loadAbout() {
+  try {
+    const v = await api("GET", "/api/version");
+    $("sideVer").textContent = v.version;
+    $("aboutVer").textContent = `版本: ${v.version}`;
+    $("aboutAuthor").textContent = v.author;
+    const u = $("aboutUpd");
+    if (v.has_update && v.latest) {
+      u.classList.remove("latest");
+      u.innerHTML = `<a href="${v.latest_url || "#"}" target="_blank" rel="noopener">发现新版本 ${v.latest}，点击前往</a>`;
+    } else {
+      u.classList.add("latest");
+      u.textContent = v.latest ? `当前已是最新版本（${v.latest}）` : "当前已是最新版本";
+    }
+  } catch (e) { /* 静默 */ }
+}
+
+/* ---------- 加载 ---------- */
+async function load() {
+  try { rules = (await api("GET", "/api/rules")).rules || []; renderServices(); }
+  catch (e) { toast("加载规则失败: " + e.message); }
+  refreshStatus();
+  loadSettingsSilent().catch(() => {});
+  loadAbout();
+  if ($("tab-logs").classList.contains("show")) startLogging();
+}
+
+/* ---------- 工具按钮 ---------- */
+$("stRegen").onclick = async () => {
   try {
     const data = await api("POST", "/api/regen");
     const reg = data.regen || {};
     toast(`已生成 ${reg.rules} 条规则 / ${reg.hosts} 个域名，caddy 校验 ${reg.validate}`);
-  } catch (e) {
-    toast("失败: " + e.message);
-  }
+  } catch (e) { toast("失败: " + e.message); }
 };
-
-document.getElementById("apply").onclick = async () => {
-  try {
-    const data = await api("POST", "/api/apply");
-    if (data.applied) {
-      toast("已应用："+ (data.out || "").trim().split("\n").pop());
-    } else {
-      const hint = location.origin.match(/127\.|localhost/) ? "" : "（本机提示：webui 需配 sudo -n 免密才可远程触发）";
-      toast(`应用未执行：${data.error || "无 root 权限"}` + hint);
-    }
-  } catch (e) {
-    toast("失败: " + e.message);
-  }
-};
-
-const edBackdrop = document.getElementById("edBackdrop");
-const edTxt = document.getElementById("edTxt");
-let edMode = null, edId = null;
-
-function openModalMode(mode) {
-  edBackdrop.classList.add("show");
-  edMode = mode;
-  if (mode === "rule") {
-    document.getElementById("edTitle").textContent = `编辑规则 ${edId}`;
-    document.getElementById("edHint").textContent = "JSON 保存后自动校验并重生成；id 需与文件名一致，留空则取文件名。";
-  } else {
-    document.getElementById("edTitle").textContent = "域名黑名单";
-    document.getElementById("edHint").textContent = "每行一个域名（支持 *.example.com），这些域名将不进入 hosts 劫持、走直连；留空 = 清空。保存后写入 S302.hosts；点顶部「一键应用」即可同步到 /etc/hosts 并重启服务。";
-  }
-}
-
-async function openEditor(id) {
-  try {
-    const data = await api("GET", `/api/rule/${id}`);
-    edId = id;
-    edTxt.value = data.text;
-    document.getElementById("edCount").textContent = `${edTxt.value.length} 字符`;
-    openModalMode("rule");
-  } catch (e) { toast("加载失败: " + e.message); }
-}
-
-async function openBlacklist() {
-  try {
-    const data = await api("GET", "/api/blacklist");
-    edId = null;
-    edTxt.value = (data.domains || []).join("\n");
-    document.getElementById("edCount").textContent = `${edTxt.value.split("\n").filter(l => l.trim()).length} 个域名`;
-    openModalMode("blacklist");
-  } catch (e) { toast("加载失败: " + e.message); }
-}
-
-document.getElementById("blacklist").onclick = openBlacklist;
-document.getElementById("edSave").onclick = async () => {
-  const btn = document.getElementById("edSave");
-  btn.disabled = true;
-  try {
-    let res;
-    if (edMode === "rule") res = await api("PUT", `/api/rule/${edId}`, { text: edTxt.value });
-    else {
-      const domains = edTxt.value.split("\n").map(l => l.trim()).filter(Boolean);
-      res = await api("PUT", "/api/blacklist", { domains });
-    }
-    const reg = res.regen || {};
-    toast(`已保存；重生成 ${reg.rules} 条规则，caddy 校验 ${reg.validate}`);
-    edBackdrop.classList.remove("show");
-  } catch (e) {
-    toast("保存失败: " + e.message);
-  } finally {
-    btn.disabled = false;
-  }
-};
-document.getElementById("edClose").onclick = () => edBackdrop.classList.remove("show");
-edBackdrop.addEventListener("click", e => { if (e.target === edBackdrop) edBackdrop.classList.remove("show"); });
-
-// ---- 设置 ----
-const setBackdrop = document.getElementById("setBackdrop");
-const $s = id => document.getElementById(id);
-
-async function loadSettings() {
-  try {
-    const s = await api("GET", "/api/settings");
-    $s("stBind").value = s.bind_ip;
-    $s("stLog").value = s.log_max_bytes;
-    $s("stKeep").value = s.backup_keep;
-    $s("stCA").value = s.ca_years;
-    $s("stLeaf").value = s.leaf_days;
-    $s("stPrefEn").checked = s.prefer.enabled;
-    $s("stPrefSpeed").checked = s.prefer.speed_test;
-    $s("stPrefMb").value = s.prefer.max_mbps;
-    $s("stPrefPar").value = s.prefer.parallel;
-    $s("stPrefLt").value = s.prefer.latency_timeout_ms;
-    $s("stPrefTop").value = s.prefer.top_n;
-    $s("stPrefSpl").value = s.prefer.samples_per_cidr;
-    $s("stAuto").checked = s.autostart;
-    $s("stCertInfo").textContent = s.cert_exists ? "证书已存在" : "证书缺失";
-  } catch (e) { toast("加载设置失败: " + e.message); }
-}
-
-document.getElementById("settings").onclick = () => { setBackdrop.classList.add("show"); loadSettings(); };
-$s("stClose").onclick = () => setBackdrop.classList.remove("show");
-setBackdrop.addEventListener("click", e => { if (e.target === setBackdrop) setBackdrop.classList.remove("show"); });
-
-$s("stSave").onclick = async () => {
-  const btn = $s("stSave");
-  btn.disabled = true;
-  try {
-    await api("PUT", "/api/settings", {
-      bind_ip: $s("stBind").value.trim() || undefined,
-      log_max_bytes: parseInt($s("stLog").value, 10) || undefined,
-      backup_keep: parseInt($s("stKeep").value, 10) || undefined,
-      ca_years: parseInt($s("stCA").value, 10) || undefined,
-      leaf_days: parseInt($s("stLeaf").value, 10) || undefined,
-      prefer: {
-        enabled: $s("stPrefEn").checked,
-        speed_test: $s("stPrefSpeed").checked,
-        max_mbps: parseFloat($s("stPrefMb").value) || 0,
-        parallel: parseInt($s("stPrefPar").value, 10) || 32,
-        latency_timeout_ms: parseInt($s("stPrefLt").value, 10) || 1200,
-        top_n: parseInt($s("stPrefTop").value, 10) || 2,
-        samples_per_cidr: parseInt($s("stPrefSpl").value, 10) || 16,
-      },
-    });
-    toast("设置已保存到 config/env.json");
-    loadSettings();
-  } catch (e) { toast("保存失败: " + e.message); } finally { btn.disabled = false; }
-};
-
-$s("stAuto").onchange = async () => {
-  try {
-    await api("POST", "/api/settings/autostart", { enabled: $s("stAuto").checked });
-    toast($s("stAuto").checked ? "已设置开机自启" : "已取消开机自启");
-  } catch (e) { toast("切换自启失败: " + e.message); loadSettings(); }
-};
-
 async function certReset(which, label) {
-  if (!confirm(`确定${label}？将重新签发证书并重启代理服务。`)) return;
+  if (!confirm(`确定${label}？将重新签发证书并重载代理服务。`)) return;
   try {
     const res = await api("POST", `/api/settings/certs/${which}`, {});
     toast(res.ok ? `${label}完成，服务已重载` : `${label}失败：${res.error || "见输出"}`);
-    if (res.output) console.log(res.output);
+    refreshStatus();
   } catch (e) { toast(`${label}失败: ` + e.message); }
 }
-
-$s("stResetRoot").onclick = () => certReset("root", "重置根证书");
-$s("stResetLeaf").onclick = () => certReset("leaf", "重置网站证书");
-
-$s("stResetFactory").onclick = async () => {
-  if (!confirm("恢复出厂：停止服务、取消开机自启、撤销 hosts 劫持、删除证书与生成物。规则文件与 env.json 保留。确认？"))
-    return;
-  if (!confirm("再次确认：将无法在面板继续操作（服务会停止），需 SSH 到本机 systemctl enable --now 恢复。"))
-    return;
+$("stResetRoot").onclick = () => certReset("root", "重置根证书");
+$("stResetLeaf").onclick = () => certReset("leaf", "重置网站证书");
+$("stResetFactory").onclick = async () => {
+  if (!confirm("恢复出厂：停止服务、取消开机自启、撤销 hosts 劫持、删除证书与生成物。规则文件与 env.json 保留。确认？")) return;
+  if (!confirm("再次确认：服务将停止，需 SSH 到本机执行 systemctl enable --now steam302-web-*.service 恢复。")) return;
   try {
     const res = await api("POST", "/api/settings/reset", { confirm: true });
     toast(res.ok ? "已完成恢复出厂" : "恢复出厂失败：" + (res.error || ""));
-    if (res.ok) { $s("stAuto").checked = false; $s("stCertInfo").textContent = "证书缺失"; }
+    refreshStatus();
   } catch (e) { toast("恢复出厂失败: " + e.message); }
+};
+
+/* 退出 UI（网页版无桌面会话） */
+$("navExit").onclick = () => {
+  toast("网页版无需退出；停止后端请使用「服务→停止服务」");
 };
 
 load();

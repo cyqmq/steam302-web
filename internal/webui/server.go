@@ -1,18 +1,22 @@
 package webui
 
 import (
+	"bufio"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	_ "embed"
@@ -50,6 +54,13 @@ type settingsView struct {
 	AutoStart   bool               `json:"autostart"`
 	CertExists  bool               `json:"cert_exists"`
 	Prefer      rules.PreferConfig `json:"prefer"`
+	// 启动行为（原版桌面端的启动/退出行为，Web 版记录偏好）
+	AutoStartMode string `json:"autostart_mode"`
+	StartService  bool   `json:"start_service"`
+	AutoUpdate    bool   `json:"auto_update"`
+	ExitSync      bool   `json:"exit_sync"`
+	MinimizeTray  bool   `json:"minimize_tray"`
+	DevSupport    bool   `json:"dev_support"`
 }
 
 // proxyProfile 是"复制代理参数"面板的数据：给客户端一键配置 hosts /
@@ -348,7 +359,7 @@ func (s *Server) settings() settingsView {
 		env.Listen.BindIP = "127.0.0.1"
 	}
 	_, statErr := os.Stat(filepath.Join(s.Root, "config", "certs", "ca.pem"))
-	return settingsView{
+	sv := settingsView{
 		BindIP:      env.Listen.BindIP,
 		LogMaxBytes: env.Fwd.LogMaxBytes,
 		BackupKeep:  env.Hosts.BackupKeep,
@@ -357,7 +368,26 @@ func (s *Server) settings() settingsView {
 		AutoStart:   s.autostartEnabled(),
 		CertExists:  statErr == nil,
 		Prefer:      env.Prefer,
+		ExitSync:    env.UI.ExitSync,
+		DevSupport:  env.UI.DevSupport,
 	}
+	// 首次（未写偏好）时套用默认：自启服务/自动更新/最小化托盘默认开启；
+	// 开机自启模式反映当前 systemd 状态。
+	if env.UI.AutoStartMode == "" {
+		sv.AutoStartMode = "disabled"
+		if sv.AutoStart {
+			sv.AutoStartMode = "service"
+		}
+		sv.StartService = true
+		sv.AutoUpdate = true
+		sv.MinimizeTray = true
+	} else {
+		sv.AutoStartMode = env.UI.AutoStartMode
+		sv.StartService = env.UI.StartService
+		sv.AutoUpdate = env.UI.AutoUpdate
+		sv.MinimizeTray = env.UI.MinimizeTray
+	}
+	return sv
 }
 
 func (s *Server) applyEnable(units []string, enabled bool) error {
@@ -371,6 +401,290 @@ func (s *Server) applyEnable(units []string, enabled bool) error {
 		return fmt.Errorf("systemctl %s: %v\n%s", verb, err, out)
 	}
 	return nil
+}
+
+// ---- 状态汇总 / 服务控制 / 日志 / 版本 ----
+
+// netStatus 是「服务→网络监听/设置信息」面板与侧栏所需的运行时快照。
+type netStatus struct {
+	BindIP        string            `json:"bind_ip"`
+	HTTPSPort     int               `json:"https_port"`
+	HTTPPort      int               `json:"http_port"`
+	HostsOn       bool              `json:"hosts_on"`
+	DNSRedirect   bool              `json:"dns_redirect"`
+	AutoProxy     bool              `json:"auto_proxy"`
+	SystemProxy   string            `json:"system_proxy"`
+	CDNPrefer     bool              `json:"cdn_prefer"`
+	CDNPinned     int               `json:"cdn_pinned"`
+	HostCount     int               `json:"host_count"`
+	Upstream      string            `json:"upstream_domains"`
+	AutostartMode string            `json:"autostart_mode"`
+	StartService  bool              `json:"start_service"`
+	AutoUpdate    bool              `json:"auto_update"`
+	ExitSync      bool              `json:"exit_sync"`
+	MinimizeTray  bool              `json:"minimize_tray"`
+	DevSupport    bool              `json:"dev_support"`
+	Services      map[string]string `json:"services"` // caddy/fwd/dnsd/webui: active|inactive|unknown
+	Timestamp     string            `json:"timestamp"`
+}
+
+func unitActive(name string) string {
+	st := strings.TrimSpace(string(mustRun("systemctl", "is-active", name)))
+	if st != "active" && st != "activating" && st != "inactive" && st != "failed" {
+		return "unknown"
+	}
+	return st
+}
+
+func mustRun(name string, args ...string) []byte {
+	out, err := exec.Command(name, args...).CombinedOutput()
+	if err != nil {
+		return out // systemctl 对 inactive 也返回非零，输出仍有意义
+	}
+	return out
+}
+
+func (s *Server) hostsOn() bool {
+	env, err := s.loadEnv()
+	if err != nil {
+		return false
+	}
+	path := env.Hosts.File
+	if path == "" {
+		path = "/etc/hosts"
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	marker := env.Hosts.Marker
+	if marker == "" {
+		marker = "#S302X"
+	}
+	return strings.Contains(string(data), marker)
+}
+
+func (s *Server) cdnPinnedCount() int {
+	c, err := prefer.Load(filepath.Join(s.Root, prefer.Path))
+	if err != nil || c == nil {
+		return 0
+	}
+	return len(c.Entries)
+}
+
+// upstreamHosts 从 env.json upstream_defaults 汇总上游域名（唯一、去 scheme）。
+func upstreamHosts(env rules.Env) string {
+	seen := map[string]bool{}
+	var hosts []string
+	add := func(raw json.RawMessage) {
+		var one string
+		if json.Unmarshal(raw, &one) == nil {
+			if u, err := url.Parse(one); err == nil && u.Host != "" {
+				seen[u.Host] = true
+			}
+			return
+		}
+		var many []string
+		if json.Unmarshal(raw, &many) == nil {
+			for _, s := range many {
+				if u, err := url.Parse(s); err == nil && u.Host != "" {
+					seen[u.Host] = true
+				}
+			}
+		}
+	}
+	for _, raw := range env.UpstreamDefaults {
+		add(raw)
+	}
+	for h := range seen {
+		hosts = append(hosts, h)
+	}
+	sort.Strings(hosts)
+	return strings.Join(hosts, "、")
+}
+
+func (s *Server) status() netStatus {
+	env, err := s.loadEnv()
+	if err != nil {
+		env = rules.Env{}
+	}
+	if env.Listen.HTTPSPort == 0 {
+		env.Listen.HTTPSPort = 25584
+	}
+	if env.Listen.HTTPPort == 0 {
+		env.Listen.HTTPPort = 24196
+	}
+	bind := env.Listen.BindIP
+	if bind == "" {
+		bind = "127.0.0.1"
+	}
+	views, err := s.listViews()
+	hostCount := 0
+	if err == nil {
+		for _, v := range views {
+			hostCount += v.HostCount
+		}
+	}
+	sv := s.settings()
+	up := upstreamHosts(env)
+	return netStatus{
+		BindIP:        bind,
+		HTTPSPort:     env.Listen.HTTPSPort,
+		HTTPPort:      env.Listen.HTTPPort,
+		HostsOn:       s.hostsOn(),
+		DNSRedirect:   unitActive("steam302-web-dnsd.service") == "active",
+		AutoProxy:     false, // 我们不做 PAC/显式代理注入，留给客户端自选
+		SystemProxy:   "不处理",
+		CDNPrefer:     env.Prefer.Enabled,
+		CDNPinned:     s.cdnPinnedCount(),
+		HostCount:     hostCount,
+		Upstream:      up,
+		AutostartMode: sv.AutoStartMode,
+		StartService:  sv.StartService,
+		AutoUpdate:    sv.AutoUpdate,
+		ExitSync:      sv.ExitSync,
+		MinimizeTray:  sv.MinimizeTray,
+		DevSupport:    sv.DevSupport,
+		Services: map[string]string{
+			"caddy": unitActive("steam302-web-caddy.service"),
+			"fwd":   unitActive("steam302-web-fwd.service"),
+			"dnsd":  unitActive("steam302-web-dnsd.service"),
+			"webui": unitActive("steam302-web-webui.service"),
+		},
+		Timestamp: time.Now().Format("2006/01/02 15:04:05"),
+	}
+}
+
+// stopServices 停止本服务栈（systemd 单元 + 手工进程），webui 自身不受影响。
+func (s *Server) stopServices() map[string]any {
+	var stopped []string
+	for _, u := range []string{"steam302-web-caddy.service", "steam302-web-fwd.service", "steam302-web-dnsd.service"} {
+		if st := unitActive(u); st == "active" || st == "activating" {
+			mustRun("systemctl", "stop", u)
+			stopped = append(stopped, u)
+		}
+	}
+	for _, pat := range []string{
+		"caddy run --config " + filepath.Join(s.Root, "Caddyfile"),
+		"s302fwd run",
+	} {
+		if exec.Command("pkill", "-f", pat).Run() == nil {
+			stopped = append(stopped, "进程:"+pat)
+		}
+	}
+	return map[string]any{"stopped": stopped, "ts": time.Now().Format("2006/01/02 15:04:05")}
+}
+
+type logsView struct {
+	File      string   `json:"file"`
+	Lines     []string `json:"lines"`
+	Total     int      `json:"total"`
+	Truncated bool     `json:"truncated"`
+}
+
+// tailLogs 取 s302fwd 运行日志的尾部。all=false 固定取最后 maxLines 行。
+func (s *Server) tailLogs(all bool, maxLines int) (logsView, error) {
+	env, err := s.loadEnv()
+	if err != nil {
+		return logsView{}, err
+	}
+	path := env.Fwd.LogFile
+	if path == "" {
+		path = "config/s302fwd.log"
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(s.Root, path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return logsView{}, err
+	}
+	defer f.Close()
+	view := logsView{File: path}
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	lines := make([]string, 0, 256)
+	for sc.Scan() {
+		s := sc.Text()
+		view.Total++
+		if all || len(lines) < maxLines {
+			lines = append(lines, s)
+			continue
+		}
+		copy(lines, lines[1:])
+		lines[maxLines-1] = s
+	}
+	view.Truncated = view.Total > len(lines)
+	view.Lines = lines
+	return view, nil
+}
+
+const (
+	appName    = "Steamcommunity 302 Web"
+	appVersion = "2.0.0"
+	appAuthor  = "steam302-web 开发组 · 界面复刻自原版 Steamcommunity 302 (By.羽翼城 | Dogfight360)"
+	appHome    = "https://github.com/cyqmq/steam302-web"
+)
+
+var (
+	latestMu      sync.Mutex
+	latestChecked time.Time
+	latestVer     string
+	latestURL     string
+)
+
+// checkLatest 查询上游 GitHub Releases 的最新 tag（30 分钟缓存，失败静默）。
+func checkLatest() (ver, page string) {
+	latestMu.Lock()
+	defer latestMu.Unlock()
+	if time.Since(latestChecked) < 30*time.Minute {
+		return latestVer, latestURL
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/repos/cyqmq/steam302-web/releases/latest", nil)
+	var gotV, gotU string
+	if err == nil {
+		req.Header.Set("User-Agent", "steam302-web/webui")
+		resp, rerr := http.DefaultClient.Do(req)
+		if rerr == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				var o struct {
+					TagName string `json:"tag_name"`
+					HTMLURL string `json:"html_url"`
+				}
+				if json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&o) == nil && o.TagName != "" {
+					gotV, gotU = strings.TrimPrefix(o.TagName, "v"), o.HTMLURL
+				}
+			}
+		}
+	}
+	latestVer, latestURL, latestChecked = gotV, gotU, time.Now()
+	return gotV, gotU
+}
+
+// newerVersion 按点分段整数比较 cur < latest。
+func newerVersion(cur, latest string) bool {
+	ck := strings.Split(strings.TrimPrefix(cur, "v"), ".")
+	lk := strings.Split(strings.TrimPrefix(latest, "v"), ".")
+	n := len(ck)
+	if len(lk) > n {
+		n = len(lk)
+	}
+	for i := 0; i < n; i++ {
+		a, b := 0, 0
+		if i < len(ck) {
+			fmt.Sscanf(ck[i], "%d", &a)
+		}
+		if i < len(lk) {
+			fmt.Sscanf(lk[i], "%d", &b)
+		}
+		if a != b {
+			return a < b
+		}
+	}
+	return false
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -618,6 +932,13 @@ func (s *Server) Handler() http.Handler {
 			CAYears     *int                `json:"ca_years"`
 			LeafDays    *int                `json:"leaf_days"`
 			Prefer      *rules.PreferConfig `json:"prefer"`
+			// 启动行为偏好
+			AutoStartMode *string `json:"autostart_mode"`
+			StartService  *bool   `json:"start_service"`
+			AutoUpdate    *bool   `json:"auto_update"`
+			ExitSync      *bool   `json:"exit_sync"`
+			MinimizeTray  *bool   `json:"minimize_tray"`
+			DevSupport    *bool   `json:"dev_support"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeJSON(w, 400, map[string]string{"error": "body 无效: " + err.Error()})
@@ -689,6 +1010,24 @@ func (s *Server) Handler() http.Handler {
 			}
 			env.Prefer = p
 		}
+		if body.AutoStartMode != nil {
+			env.UI.AutoStartMode = *body.AutoStartMode
+		}
+		if body.StartService != nil {
+			env.UI.StartService = *body.StartService
+		}
+		if body.AutoUpdate != nil {
+			env.UI.AutoUpdate = *body.AutoUpdate
+		}
+		if body.ExitSync != nil {
+			env.UI.ExitSync = *body.ExitSync
+		}
+		if body.MinimizeTray != nil {
+			env.UI.MinimizeTray = *body.MinimizeTray
+		}
+		if body.DevSupport != nil {
+			env.UI.DevSupport = *body.DevSupport
+		}
 		if err := s.saveEnv(env); err != nil {
 			writeJSON(w, 500, map[string]string{"error": err.Error()})
 			return
@@ -757,6 +1096,78 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		writeJSON(w, 200, map[string]any{"ok": true, "output": string(out)})
+	})
+
+	// 全选/全不选：一次性写入全部规则覆盖并重生成一次。
+	mux.HandleFunc("POST /api/rules/bulk", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Enabled == nil {
+			writeJSON(w, 400, map[string]string{"error": "body 需为 {\"enabled\": true|false}"})
+			return
+		}
+		rs, _, err := s.loadAll()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		ov, err := rules.LoadOverrides(s.overridesPath())
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		if ov == nil {
+			ov = map[string]bool{}
+		}
+		for _, rule := range rs {
+			ov[rule.ID] = *body.Enabled
+		}
+		if err := s.saveOverrides(ov); err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		res, err := s.regenerate()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "enabled": *body.Enabled, "count": len(rs), "regen": res})
+	})
+
+	// 运行时状态快照：服务 tab 右侧「网络监听/设置信息」+ 侧栏服务灯。
+	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, s.status())
+	})
+
+	// 服务运行日志（尾部）。?all=1 返回全部行，否则取最后 1000 行。
+	mux.HandleFunc("GET /api/logs", func(w http.ResponseWriter, r *http.Request) {
+		all := r.URL.Query().Get("all") == "1"
+		view, err := s.tailLogs(all, 1000)
+		if err != nil {
+			writeJSON(w, 200, map[string]any{"file": "", "lines": []string{}, "total": 0, "error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, view)
+	})
+
+	// 停止服务（caddy/fwd/dnsd）。webui 独立存活，可用「重载服务」恢复。
+	mux.HandleFunc("POST /api/services/stop", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, s.stopServices())
+	})
+
+	// 版本/关于信息：含上游最新版检测与是否有更新。
+	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, r *http.Request) {
+		latest, page := checkLatest()
+		writeJSON(w, 200, map[string]any{
+			"name":       appName,
+			"version":    appVersion,
+			"author":     appAuthor,
+			"homepage":   appHome,
+			"latest":     latest,
+			"latest_url": page,
+			"has_update": newerVersion(appVersion, latest),
+		})
 	})
 
 	return mux

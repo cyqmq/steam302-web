@@ -10,7 +10,19 @@ type Env struct {
 	Fwd              Fwd                        `json:"fwd"`
 	Prefer           PreferConfig               `json:"prefer"`
 	UpstreamDefaults map[string]json.RawMessage `json:"upstream_defaults"`
+	UI               UI                         `json:"ui,omitempty"`
 	Notes            string                     `json:"notes"`
+}
+
+// UI 是 Web 控制台「设置→启动行为」的偏好（对应原版桌面端的启动/退出行为；Web
+// 版仅记录偏好，系统级自启仍由 systemd 单元管理）。
+type UI struct {
+	AutoStartMode string `json:"autostart_mode,omitempty"` // foreground|service|disabled
+	StartService  bool   `json:"start_service,omitempty"`
+	AutoUpdate    bool   `json:"auto_update,omitempty"`
+	ExitSync      bool   `json:"exit_sync,omitempty"`
+	MinimizeTray  bool   `json:"minimize_tray,omitempty"`
+	DevSupport    bool   `json:"dev_support,omitempty"`
 }
 
 // PreferConfig 是 CDN 优选(测速)的全局默认值，规则内的 site.prefer 可覆盖。
