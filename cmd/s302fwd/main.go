@@ -30,10 +30,11 @@ func main() {
 		fatal("加载 env.json: %v", err)
 	}
 	cf := fwd.Config{
-		Bind:     env.Fwd.Bind,
-		PidFile:  abs(rootDir, env.Fwd.PidFile),
-		LogFile:  abs(rootDir, env.Fwd.LogFile),
-		Mappings: maps(env.Fwd.Mappings),
+		Bind:      env.Fwd.Bind,
+		PidFile:   abs(rootDir, env.Fwd.PidFile),
+		LogFile:   abs(rootDir, env.Fwd.LogFile),
+		Mappings:  maps(env.Fwd.Mappings),
+		AdminAddr: env.Fwd.AdminAddr,
 	}
 	daemon := &fwd.Daemon{
 		Bind:        cf.Bind,

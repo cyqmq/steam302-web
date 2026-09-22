@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "wikipedia_accel",
+  "name": "维基百科加速",
+  "group": "more",
+  "description": "Wikipedia/Wikimedia 域名走 Cloudflare 优选边缘直连。默认关闭；效果视运营商而定，异常请关闭。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["wikipedia.org", "www.wikipedia.org", "*.wikipedia.org"],
+      "prefer": { "mode": "cf", "cidrs": ["104.16.0.0/13", "104.24.0.0/14"], "samples_per_cidr": 16, "top_n": 3, "validate": true, "validate_any_status": true },
+      "handlers": [
+        { "type": "reverse_proxy", "upstreams": ["https://104.16.0.1"], "lb": { "policy": "round_robin" }, "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": true }, "header_up": [["Host", "{host}"]] }
+      ]
+    },
+    {
+      "hosts": ["wikimedia.org", "www.wikimedia.org", "upload.wikimedia.org", "*.wikimedia.org"],
+      "prefer": { "mode": "cf", "cidrs": ["104.16.0.0/13", "104.24.0.0/14"], "samples_per_cidr": 16, "top_n": 3, "validate": true, "validate_any_status": true },
+      "handlers": [
+        { "type": "reverse_proxy", "upstreams": ["https://104.16.0.1"], "lb": { "policy": "round_robin" }, "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": true }, "header_up": [["Host", "{host}"]] }
+      ]
+    }
+  ]
+}

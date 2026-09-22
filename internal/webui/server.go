@@ -49,6 +49,8 @@ type ruleView struct {
 // settingsView 是「设置」页面的可编辑配置子集（从 config/env.json 派生）。
 type settingsView struct {
 	BindIP      string             `json:"bind_ip"`
+	HTTPSPort   int                `json:"https_port"`
+	HTTPPort    int                `json:"http_port"`
 	LogMaxBytes int64              `json:"log_max_bytes"`
 	BackupKeep  int                `json:"backup_keep"`
 	CAYears     int                `json:"ca_years"`
@@ -68,6 +70,15 @@ type settingsView struct {
 	DNSCDNPrefer  bool   `json:"dns_cdn_prefer"`
 	DNSUserRules  bool   `json:"dns_user_rules"`
 	DNSLog        bool   `json:"dns_log"`
+	// DNS 重定向参数（对应 systemd steam302-web-dnsd / bin/dnsredir）
+	DNSListen        string   `json:"dns_listen"`
+	DNSUpstream      []string `json:"dns_upstream"`
+	DNSTTL           uint32   `json:"dns_ttl"`
+	DNSAnswerIP      string   `json:"dns_answer_ip"`
+	DNSQueryLog      bool     `json:"dns_query_log"`
+	DNSUserRulesFile bool     `json:"dns_user_rules_file"`
+	DNSResolvManaged bool     `json:"dns_resolv_managed"`
+	DNSLANRedirect   bool     `json:"dns_lan_redirect"`
 }
 
 // proxyProfile 是"复制代理参数"面板的数据：给客户端一键配置 hosts /
@@ -365,23 +376,39 @@ func (s *Server) settings() settingsView {
 	if env.Listen.BindIP == "" {
 		env.Listen.BindIP = "127.0.0.1"
 	}
+	if env.Listen.HTTPSPort == 0 {
+		env.Listen.HTTPSPort = 25584
+	}
+	if env.Listen.HTTPPort == 0 {
+		env.Listen.HTTPPort = 24196
+	}
 	_, statErr := os.Stat(filepath.Join(s.Root, "config", "certs", "ca.pem"))
 	sv := settingsView{
-		BindIP:       env.Listen.BindIP,
-		LogMaxBytes:  env.Fwd.LogMaxBytes,
-		BackupKeep:   env.Hosts.BackupKeep,
-		CAYears:      env.Cert.CAYears,
-		LeafDays:     env.Cert.LeafDays,
-		AutoStart:    s.autostartEnabled(),
-		CertExists:   statErr == nil,
-		Prefer:       env.Prefer,
-		ExitSync:     env.UI.ExitSync,
-		DevSupport:   env.UI.DevSupport,
-		DevFreq:      env.UI.DevFreq,
-		AutoWinProxy: env.UI.AutoWinProxy,
-		DNSCDNPrefer: env.UI.DNSCDNPrefer,
-		DNSUserRules: env.UI.DNSUserRules,
-		DNSLog:       env.UI.DNSLog,
+		BindIP:           env.Listen.BindIP,
+		HTTPSPort:        env.Listen.HTTPSPort,
+		HTTPPort:         env.Listen.HTTPPort,
+		LogMaxBytes:      env.Fwd.LogMaxBytes,
+		BackupKeep:       env.Hosts.BackupKeep,
+		CAYears:          env.Cert.CAYears,
+		LeafDays:         env.Cert.LeafDays,
+		AutoStart:        s.autostartEnabled(),
+		CertExists:       statErr == nil,
+		Prefer:           env.Prefer,
+		ExitSync:         env.UI.ExitSync,
+		DevSupport:       env.UI.DevSupport,
+		DevFreq:          env.UI.DevFreq,
+		AutoWinProxy:     env.UI.AutoWinProxy,
+		DNSCDNPrefer:     env.UI.DNSCDNPrefer,
+		DNSUserRules:     env.UI.DNSUserRules,
+		DNSLog:           env.UI.DNSLog,
+		DNSListen:        orStr(env.DNS.Listen, "127.0.0.1:53"),
+		DNSUpstream:      env.DNS.Upstream,
+		DNSTTL:           env.DNS.TTL,
+		DNSAnswerIP:      orStr(env.DNS.AnswerIP, "127.0.0.1"),
+		DNSQueryLog:      env.DNS.QueryLog,
+		DNSUserRulesFile: env.DNS.UserRules,
+		DNSResolvManaged: env.DNS.ResolvManaged,
+		DNSLANRedirect:   env.DNS.LANRedirect,
 	}
 	// 首次（未写偏好）时套用默认：自启服务/自动更新/最小化托盘默认开启；
 	// 开机自启模式反映当前 systemd 状态。
@@ -403,6 +430,39 @@ func (s *Server) settings() settingsView {
 		sv.DevFreq = "weekly"
 	}
 	return sv
+}
+
+// alignFwdMappings 保持 443→HTTPSPort、80→HTTPPort 两条映射，若端口变化则更新目标。
+func alignFwdMappings(in []rules.FwdMap, httpPort, httpsPort int) []rules.FwdMap {
+	if httpPort == 0 {
+		httpPort = 24196
+	}
+	if httpsPort == 0 {
+		httpsPort = 25584
+	}
+	out := make([]rules.FwdMap, 0, len(in)+2)
+	seen := map[int]bool{}
+	for _, m := range in {
+		to := m.To
+		switch m.From {
+		case 443:
+			to = httpsPort
+		case 80:
+			to = httpPort
+		}
+		if seen[m.From] {
+			continue
+		}
+		seen[m.From] = true
+		out = append(out, rules.FwdMap{From: m.From, To: to})
+	}
+	if !seen[443] {
+		out = append(out, rules.FwdMap{From: 443, To: httpsPort})
+	}
+	if !seen[80] {
+		out = append(out, rules.FwdMap{From: 80, To: httpPort})
+	}
+	return out
 }
 
 func (s *Server) applyEnable(units []string, enabled bool) error {
@@ -480,6 +540,13 @@ func mustRun(name string, args ...string) []byte {
 		return out // systemctl 对 inactive 也返回非零，输出仍有意义
 	}
 	return out
+}
+
+func orStr(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
 }
 
 func (s *Server) hostsOn() bool {
@@ -773,7 +840,28 @@ func (s *Server) Handler() http.Handler {
 			writeJSON(w, 500, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, 200, map[string]any{"rules": views})
+		enabled := 0
+		for _, v := range views {
+			if v.Enabled {
+				enabled++
+			}
+		}
+		enabledAt, ovAt := "", ""
+		if fi, err := os.Stat(s.rulesDir()); err == nil {
+			enabledAt = fi.ModTime().Format("2006/01/02 15:04:05")
+		}
+		if fi, err := os.Stat(s.overridesPath()); err == nil {
+			ovAt = fi.ModTime().Format("2006/01/02 15:04:05")
+		}
+		writeJSON(w, 200, map[string]any{
+			"rules": views,
+			"meta": map[string]any{
+				"count":               len(views),
+				"enabled":             enabled,
+				"last_edit":           enabledAt,
+				"overrides_last_edit": ovAt,
+			},
+		})
 	})
 
 	mux.HandleFunc("POST /api/rules/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -831,6 +919,28 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, 200, map[string]any{"ok": true, "regen": res})
 	})
 
+	// 重载服务：重生成配置并重启 caddy/fwd/dnsd（不触碰 /etc/hosts）。
+	mux.HandleFunc("POST /api/services/reload", func(w http.ResponseWriter, r *http.Request) {
+		res, err := s.regenerate()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		var restarted []string
+		var failures []string
+		for _, u := range []string{"steam302-web-caddy.service", "steam302-web-fwd.service", "steam302-web-dnsd.service"} {
+			if runOK("systemctl", "restart", u) {
+				restarted = append(restarted, u)
+			} else {
+				failures = append(failures, u)
+			}
+		}
+		writeJSON(w, 200, map[string]any{
+			"ok": true, "regen": res,
+			"restarted": restarted, "failures": failures,
+		})
+	})
+
 	// 一键应用：sudo -n 调 bin/apply（重生成 → 写 /etc/hosts → 重启 caddy/fwd）。
 	// 无免密 sudo 时返回 applied=false，前端提示用命令行手动执行。
 	mux.HandleFunc("POST /api/apply", func(w http.ResponseWriter, r *http.Request) {
@@ -861,6 +971,28 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		writeJSON(w, 200, p)
+	})
+
+	// PAC 文件导出：浏览器/系统配置自动代理用（白名单式，仅目标域走 HTTPS 代理）。
+	mux.HandleFunc("GET /proxy.pac", func(w http.ResponseWriter, r *http.Request) {
+		p, err := s.profile()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		_, _ = w.Write([]byte(p.PAC))
+	})
+
+	// 同内容以 JSON 返回（供界面预览/复制）。
+	mux.HandleFunc("GET /api/pac", func(w http.ResponseWriter, r *http.Request) {
+		p, err := s.profile()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"pac": p.PAC, "https_port": p.HTTPS, "http_port": p.HTTP, "bind_ip": p.BindIP})
 	})
 
 	// 规则编辑器：GET 原始 JSON 文本；PUT 校验后写盘并重生成。
@@ -989,23 +1121,30 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/settings", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			BindIP      *string             `json:"bind_ip"`
+			HTTPSPort   *int                `json:"https_port"`
+			HTTPPort    *int                `json:"http_port"`
 			LogMaxBytes *int64              `json:"log_max_bytes"`
 			BackupKeep  *int                `json:"backup_keep"`
 			CAYears     *int                `json:"ca_years"`
 			LeafDays    *int                `json:"leaf_days"`
 			Prefer      *rules.PreferConfig `json:"prefer"`
 			// 启动行为偏好
-			AutoStartMode *string `json:"autostart_mode"`
-			StartService  *bool   `json:"start_service"`
-			AutoUpdate    *bool   `json:"auto_update"`
-			ExitSync      *bool   `json:"exit_sync"`
-			MinimizeTray  *bool   `json:"minimize_tray"`
-			DevSupport    *bool   `json:"dev_support"`
-			DevFreq       *string `json:"dev_freq"`
-			AutoWinProxy  *bool   `json:"auto_win_proxy"`
-			DNSCDNPrefer  *bool   `json:"dns_cdn_prefer"`
-			DNSUserRules  *bool   `json:"dns_user_rules"`
-			DNSLog        *bool   `json:"dns_log"`
+			AutoStartMode *string   `json:"autostart_mode"`
+			StartService  *bool     `json:"start_service"`
+			AutoUpdate    *bool     `json:"auto_update"`
+			ExitSync      *bool     `json:"exit_sync"`
+			MinimizeTray  *bool     `json:"minimize_tray"`
+			DevSupport    *bool     `json:"dev_support"`
+			DevFreq       *string   `json:"dev_freq"`
+			AutoWinProxy  *bool     `json:"auto_win_proxy"`
+			DNSCDNPrefer  *bool     `json:"dns_cdn_prefer"`
+			DNSUserRules  *bool     `json:"dns_user_rules"`
+			DNSLog        *bool     `json:"dns_log"`
+			DNSListen     *string   `json:"dns_listen"`
+			DNSUpstream   *[]string `json:"dns_upstream"`
+			DNSTTL        *uint32   `json:"dns_ttl"`
+			DNSAnswerIP   *string   `json:"dns_answer_ip"`
+			DNSQueryLog   *bool     `json:"dns_query_log"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeJSON(w, 400, map[string]string{"error": "body 无效: " + err.Error()})
@@ -1014,6 +1153,15 @@ func (s *Server) Handler() http.Handler {
 		if body.BindIP != nil && net.ParseIP(*body.BindIP) == nil {
 			writeJSON(w, 400, map[string]string{"error": "bind_ip 不是有效 IP"})
 			return
+		}
+		for _, p := range []struct {
+			name string
+			v    *int
+		}{{"https_port", body.HTTPSPort}, {"http_port", body.HTTPPort}} {
+			if p.v != nil && (*p.v < 1 || *p.v > 65535) {
+				writeJSON(w, 400, map[string]string{"error": p.name + " 须在 1~65535"})
+				return
+			}
 		}
 		if body.LogMaxBytes != nil && *body.LogMaxBytes < 0 {
 			writeJSON(w, 400, map[string]string{"error": "log_max_bytes 不能为负"})
@@ -1039,6 +1187,19 @@ func (s *Server) Handler() http.Handler {
 		if body.BindIP != nil {
 			env.Listen.BindIP = *body.BindIP
 		}
+		if body.HTTPSPort != nil {
+			env.Listen.HTTPSPort = *body.HTTPSPort
+		}
+		if body.HTTPPort != nil {
+			env.Listen.HTTPPort = *body.HTTPPort
+		}
+		if env.Listen.HTTPSPort == env.Listen.HTTPPort {
+			writeJSON(w, 400, map[string]string{"error": "http_port 不能与 https_port 相同"})
+			return
+		}
+		// 端口变更时同步重写 fwd 映射的目标端口（443→HTTPS、80→HTTP），
+		// 使 s302fwd 重启后转发到新的 caddy 监听。
+		env.Fwd.Mappings = alignFwdMappings(env.Fwd.Mappings, env.Listen.HTTPPort, env.Listen.HTTPSPort)
 		if body.LogMaxBytes != nil {
 			env.Fwd.LogMaxBytes = *body.LogMaxBytes
 		}
@@ -1052,7 +1213,7 @@ func (s *Server) Handler() http.Handler {
 			env.Cert.LeafDays = *body.LeafDays
 		}
 		if body.Prefer != nil {
-			// 只允许覆盖数值/开关字段，download_url 等保留现有
+			// 覆盖数值/开关/测速资源字段
 			p := env.Prefer
 			if body.Prefer.Enabled != p.Enabled {
 				p.Enabled = body.Prefer.Enabled
@@ -1062,6 +1223,9 @@ func (s *Server) Handler() http.Handler {
 			}
 			if body.Prefer.LatencyTimeoutMS != 0 {
 				p.LatencyTimeoutMS = body.Prefer.LatencyTimeoutMS
+			}
+			if body.Prefer.LatencyTries != 0 {
+				p.LatencyTries = body.Prefer.LatencyTries
 			}
 			if body.Prefer.Parallel != 0 {
 				p.Parallel = body.Prefer.Parallel
@@ -1074,6 +1238,24 @@ func (s *Server) Handler() http.Handler {
 			}
 			if body.Prefer.SamplesPerCIDR != 0 {
 				p.SamplesPerCIDR = body.Prefer.SamplesPerCIDR
+			}
+			if body.Prefer.Port != 0 {
+				p.Port = body.Prefer.Port
+			}
+			switch body.Prefer.DownloadURL {
+			case "":
+			default:
+				if u, err := url.Parse(body.Prefer.DownloadURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+					writeJSON(w, 400, map[string]string{"error": "download_url 需为 http(s) 地址"})
+					return
+				}
+				p.DownloadURL = body.Prefer.DownloadURL
+			}
+			if body.Prefer.DownloadSize != 0 {
+				p.DownloadSize = body.Prefer.DownloadSize
+			}
+			if body.Prefer.DownloadTimeoutS != 0 {
+				p.DownloadTimeoutS = body.Prefer.DownloadTimeoutS
 			}
 			env.Prefer = p
 		}
@@ -1109,6 +1291,25 @@ func (s *Server) Handler() http.Handler {
 		}
 		if body.DNSLog != nil {
 			env.UI.DNSLog = *body.DNSLog
+		}
+		if body.DNSListen != nil {
+			env.DNS.Listen = *body.DNSListen
+		}
+		if body.DNSUpstream != nil {
+			env.DNS.Upstream = *body.DNSUpstream
+		}
+		if body.DNSTTL != nil {
+			env.DNS.TTL = *body.DNSTTL
+		}
+		if body.DNSAnswerIP != nil {
+			if net.ParseIP(*body.DNSAnswerIP) == nil {
+				writeJSON(w, 400, map[string]string{"error": "dns_answer_ip 不是有效 IP"})
+				return
+			}
+			env.DNS.AnswerIP = *body.DNSAnswerIP
+		}
+		if body.DNSQueryLog != nil {
+			env.DNS.QueryLog = *body.DNSQueryLog
 		}
 		if err := s.saveEnv(env); err != nil {
 			writeJSON(w, 500, map[string]string{"error": err.Error()})
@@ -1254,6 +1455,18 @@ func (s *Server) Handler() http.Handler {
 		mustRun("systemctl", verb, "steam302-web-dnsd.service")
 		writeJSON(w, 200, map[string]any{"ok": true, "enabled": *body.Enabled, "state": unitActive("steam302-web-dnsd.service")})
 	})
+
+	// 证书区（CA 下载/状态/系统信任）：
+	s.registerCert(mux)
+
+	// DNS 重定向（解析器接管 / 局域网重定向）：
+	s.registerDNS(mux)
+
+	// 连接监控（代理到 s302fwd 回环管理接口）：
+	s.registerConns(mux)
+
+	// CDN 优选定时健康检测：
+	s.registerPrefer(mux)
 
 	// hosts 劫持开关：on=重生成后经 apply 写入 /etc/hosts；off=按 marker 撤回劫持段。
 	mux.HandleFunc("POST /api/hosts", func(w http.ResponseWriter, r *http.Request) {

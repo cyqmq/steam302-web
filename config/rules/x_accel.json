@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "x_accel",
+  "name": "X / Twitter 加速",
+  "group": "more",
+  "description": "X(Twitter) 全系域名：静态资源走 CF 优选边缘直连，其余走 steam302 节点。默认关闭；效果视运营商而定，异常请关闭。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["x.com", "www.x.com", "twitter.com", "www.twitter.com", "api.twitter.com"],
+      "prefer": { "mode": "cf", "cidrs": ["104.16.0.0/13", "104.24.0.0/14"], "samples_per_cidr": 16, "top_n": 3, "validate": true, "validate_any_status": true },
+      "handlers": [
+        { "type": "reverse_proxy", "upstreams": ["https://104.16.0.1"], "lb": { "policy": "round_robin" }, "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": true }, "header_up": [["Host", "{host}"]] }
+      ]
+    },
+    {
+      "hosts": ["abs.twimg.com", "pbs.twimg.com", "video.twimg.com", "upload.twitter.com", "cdn.syndication.twimg.com"],
+      "prefer": { "mode": "cf", "cidrs": ["104.16.0.0/13", "104.24.0.0/14"], "samples_per_cidr": 16, "top_n": 3, "validate": true, "validate_any_status": true },
+      "handlers": [
+        { "type": "reverse_proxy", "upstreams": ["https://104.16.0.1"], "lb": { "policy": "round_robin" }, "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": true }, "header_up": [["Host", "{host}"]] }
+      ]
+    }
+  ]
+}

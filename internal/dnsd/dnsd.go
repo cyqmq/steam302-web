@@ -16,17 +16,21 @@ import (
 )
 
 // Server 是本机 DNS 重定向服务器。域名单与 hosts 劫持同源：
-// 由 rules（含黑名单过滤）收集，支持 "*.example.com" 通配后缀。
+// 由 rules（含黑名单过滤）收集，支持 "*.example.com" 通配后缀；
+// 另支持用户自定义解析（pattern->IP，覆盖默认应答 IP）。
 type Server struct {
-	bind      string
-	upstreams []string
-	timeout   time.Duration
-	ttl       uint32
-	answerIP  net.IP
-	patterns  []string
-	cache     *answerCache
-	logger    *log.Logger
-	mu        sync.RWMutex
+	bind        string
+	upstreams   []string
+	timeout     time.Duration
+	ttl         uint32
+	answerIP    net.IP
+	patterns    []string
+	userHosts   map[string]string // 规范化 pattern -> 应答 IP
+	userPats    []string          // 排序后的用户规则 pattern（供后缀匹配）
+	cache       *answerCache
+	logger      *log.Logger
+	queryLogger *log.Logger // 非 nil 时逐条记录查询
+	mu          sync.RWMutex
 }
 
 type Option func(*Server)
@@ -72,6 +76,38 @@ func WithLogger(l *log.Logger) Option {
 	}
 }
 
+// WithUserHosts 注入用户自定义解析规则（pattern -> 应答 IP）；pattern 支持
+// "*.example.com" 通配，优先级高于默认 answer_ip。
+func WithUserHosts(m map[string]string) Option {
+	return func(s *Server) {
+		if len(m) == 0 {
+			return
+		}
+		hosts := map[string]string{}
+		var pats []string
+		for p, ip := range m {
+			n := normalizeName(strings.TrimPrefix(strings.TrimSpace(p), "*."))
+			if n == "" || net.ParseIP(strings.TrimSpace(ip)) == nil {
+				continue
+			}
+			if _, ok := hosts[n]; !ok {
+				hosts[n] = strings.TrimSpace(ip)
+				pats = append(pats, n)
+			}
+		}
+		sort.Strings(pats)
+		s.userHosts = hosts
+		s.userPats = pats
+	}
+}
+
+// WithQueryLogger 逐条记录查询日志（qname、类型、动作、应答 IP）。
+func WithQueryLogger(l *log.Logger) Option {
+	return func(s *Server) {
+		s.queryLogger = l
+	}
+}
+
 // New 创建 DNS 重定向服务器。domains 为劫持域名模式列表，支持
 // "*.example.com" 通配后缀。
 func New(bind string, domains []string, opts ...Option) *Server {
@@ -93,9 +129,34 @@ func New(bind string, domains []string, opts ...Option) *Server {
 	return s
 }
 
-// Hijacked 报告域名是否命中劫持集合。
+// Hijacked 报告域名是否命中劫持集合（含用户自定义规则）。
 func (s *Server) Hijacked(qname string) bool {
-	return matchAny(normalizeName(qname), s.patterns)
+	return matchAny(normalizeName(qname), s.patterns) || matchAny(normalizeName(qname), s.userPats)
+}
+
+// answerIPFor 优先返回用户自定义规则命中的 IP，否则默认应答 IP。
+func (s *Server) answerIPFor(name string) net.IP {
+	if ipStr, ok := lookupUser(s.userHosts, s.userPats, name); ok {
+		if ip := net.ParseIP(ipStr); ip != nil {
+			return ip
+		}
+	}
+	return s.answerIP
+}
+
+func lookupUser(hosts map[string]string, pats []string, name string) (string, bool) {
+	if hosts == nil {
+		return "", false
+	}
+	if v, ok := hosts[name]; ok {
+		return v, true
+	}
+	for _, p := range pats {
+		if p != name && strings.HasSuffix(name, "."+p) {
+			return hosts[p], true
+		}
+	}
+	return "", false
 }
 
 // Upstreams 返回当前上游 DNS 列表（New 时已解析 resolv.conf）。
@@ -144,14 +205,26 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		m.SetReply(req)
 		m.Rcode = dns.RcodeFormatError
 		_ = w.WriteMsg(m)
+		s.logQuery(req, "format-error", "", "")
 		return
 	}
+	start := time.Now()
 	name := normalizeName(q[0].Name)
 	if s.Hijacked(name) {
 		s.replyHijacked(w, req, name)
+		s.logQuery(req, "hijack", s.answerIPFor(name).String(), time.Since(start).String())
 		return
 	}
-	s.forward(w, req)
+	action := s.forward(w, req)
+	s.logQuery(req, action, "", time.Since(start).String())
+}
+
+func (s *Server) logQuery(req *dns.Msg, action, detail, elapsed string) {
+	if s.queryLogger == nil || len(req.Question) == 0 {
+		return
+	}
+	s.queryLogger.Printf("%s %s %s %s detail=%s", time.Now().Format("2006/01/02 15:04:05"),
+		normalizeName(req.Question[0].Name), dns.TypeToString[req.Question[0].Qtype], action, detail)
 }
 
 // replyHijacked 对劫持域名应答：A → 应答 IP；其余类型（含 AAAA/HTTPS/SVCB）
@@ -168,7 +241,7 @@ func (s *Server) replyHijacked(w dns.ResponseWriter, req *dns.Msg, name string) 
 				Class:  dns.ClassINET,
 				Ttl:    s.ttl,
 			},
-			A: s.answerIP,
+			A: s.answerIPFor(name),
 		}
 		m.Answer = []dns.RR{rr}
 	}
@@ -176,13 +249,14 @@ func (s *Server) replyHijacked(w dns.ResponseWriter, req *dns.Msg, name string) 
 }
 
 // forward 将非劫持域名转发上游，带 TTL 缓存；UDP 截断时回退 TCP。
-func (s *Server) forward(w dns.ResponseWriter, req *dns.Msg) {
+// 返回值记录动作供查询日志使用。
+func (s *Server) forward(w dns.ResponseWriter, req *dns.Msg) string {
 	key := cacheKey(&req.Question[0])
 	if resp, ok := s.cache.Get(key); ok && !resp.Expired() {
 		cm := resp.Msg.Copy()
 		cm.Id = req.Id
 		_ = w.WriteMsg(cm)
-		return
+		return "cache"
 	}
 	for _, up := range s.upstreams {
 		m, err := s.exchange(up, req)
@@ -193,11 +267,12 @@ func (s *Server) forward(w dns.ResponseWriter, req *dns.Msg) {
 		s.cache.Put(key, m, s.ttl)
 		m.Id = req.Id
 		_ = w.WriteMsg(m)
-		return
+		return "forward"
 	}
 	m := new(dns.Msg)
 	m.SetRcode(req, dns.RcodeServerFailure)
 	_ = w.WriteMsg(m)
+	return "servfail"
 }
 
 func (s *Server) exchange(up string, req *dns.Msg) (*dns.Msg, error) {

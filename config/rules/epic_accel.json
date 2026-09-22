@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "epic_accel",
+  "name": "Epic 商城/启动器加速",
+  "group": "more",
+  "description": "Epic Games 域名：商店/启动器 API 走 Fastly 优选边缘，下载走 Akamai 边缘。默认关闭；效果视运营商而定，异常请关闭。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["epicgames.com", "www.epicgames.com", "store.epicgames.com", "launcher-public-service-prod06.ol.epicgames.com", "api.epicgames.dev"],
+      "prefer": { "mode": "cf", "cidrs": ["151.101.0.0/16"], "samples_per_cidr": 16, "top_n": 3, "validate": true, "validate_any_status": true },
+      "handlers": [
+        { "type": "reverse_proxy", "upstreams": ["https://151.101.1.1"], "lb": { "policy": "round_robin" }, "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": true }, "header_up": [["Host", "{host}"]] }
+      ]
+    },
+    {
+      "hosts": ["assets.epicgames.com", "static-assets-prod.epicgames.com", "turbo-client.epicgames.com", "epicgames-download1.akamaized.net", "dl.epicgames.com", "cdn1.epicgames.com"],
+      "prefer": { "mode": "cf", "cidrs": ["151.101.0.0/16"], "samples_per_cidr": 16, "top_n": 3, "validate": true, "validate_any_status": true },
+      "handlers": [
+        { "type": "reverse_proxy", "upstreams": ["https://151.101.1.1"], "lb": { "policy": "round_robin" }, "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": true }, "header_up": [["Host", "{host}"]] }
+      ]
+    }
+  ]
+}

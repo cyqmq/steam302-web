@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "instagram_accel",
+  "name": "Instagram 加速",
+  "group": "more",
+  "description": "Instagram 主站与图片资源走 Meta 边缘优选直连。默认关闭；效果视运营商而定，异常请关闭。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["instagram.com", "www.instagram.com", "i.instagram.com", "*.instagram.com"],
+      "prefer": { "mode": "cf", "cidrs": ["157.240.0.0/16"], "samples_per_cidr": 16, "top_n": 3, "validate": true, "validate_any_status": true },
+      "handlers": [
+        { "type": "reverse_proxy", "upstreams": ["https://157.240.1.1"], "lb": { "policy": "round_robin" }, "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": true }, "header_up": [["Host", "{host}"]] }
+      ]
+    }
+  ]
+}

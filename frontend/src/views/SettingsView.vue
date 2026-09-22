@@ -1,10 +1,10 @@
 <script setup>
-import { ref, computed, watch, inject } from 'vue'
+import { ref, computed, watch, inject, onMounted } from 'vue'
 import {
   Laptop, Play, RefreshCw, Minimize2, LogOut, Server, Network, Signal,
   Pencil, File, Copy, History, Globe, Zap, List, Shield, Gauge,
   Cloud, Lock, Calendar, Info, Heart, BookOpen, Settings,
-  Trash2
+  Trash2, Download, Clock
 } from 'lucide-vue-next'
 import SettingCard from '../components/SettingCard.vue'
 import SettingRow from '../components/SettingRow.vue'
@@ -16,10 +16,74 @@ import { put, post, get } from '../lib/api.js'
 import { store, toast } from '../lib/state.js'
 
 const reload = inject('reload', async () => {})
+const reloadStatus = inject('reloadStatus', async () => {})
 
 const s = computed(() => store.settings || {})
 const ast = computed(() => s.value.autostart_mode || 'disabled')
 const hostsOn = computed(() => !!(store.status && store.status.hosts_on))
+
+// —— 本地监听端口（可编辑，重载后生效）——
+const httpsPort = ref('25584')
+const httpPort = ref('24196')
+watch(
+  () => [s.value.https_port, s.value.http_port],
+  ([h, p]) => {
+    if (h) httpsPort.value = String(h)
+    if (p) httpPort.value = String(p)
+  },
+  { immediate: true }
+)
+
+// —— DNS 能力组 ——
+const dnsListen = ref('127.0.0.1:53')
+const dnsUpstreamTxt = ref('')
+const dnsTTL = ref('600')
+const dnsAnswerIP = ref('127.0.0.1')
+watch(
+  () => [s.value.dns_listen, s.value.dns_upstream, s.value.dns_ttl, s.value.dns_answer_ip],
+  ([l, u, t, a]) => {
+    if (l) dnsListen.value = l
+    if (Array.isArray(u)) dnsUpstreamTxt.value = u.join(', ')
+    if (t) dnsTTL.value = String(t)
+    if (a) dnsAnswerIP.value = a
+  },
+  { immediate: true }
+)
+const dnsResolv = computed(() => !!(s.value.dns_resolv_managed || (store.dns && store.dns.resolv_managed)))
+const dnsLAN = computed(() => !!(s.value.dns_lan_redirect || (store.dns && store.dns.lan_redirect)))
+const dnsActive = computed(() => !!((store.dns && store.dns.active) || (store.status && store.status.dns_redirect)))
+
+// —— CDN 定时健康检测 ——
+const preferTimer = ref({ enabled: false, minutes: 30 })
+const preferMinutes = computed(() => String(preferTimer.value.minutes || 30))
+const preferMinOptions = [15, 30, 60, 120, 240, 480].map((m) => ({ value: String(m), label: '每 ' + m + ' 分钟' }))
+async function loadPreferTimer() {
+  try {
+    const d = await get('/api/prefer/timer')
+    if (d) preferTimer.value = { enabled: !!d.enabled, minutes: d.minutes || 30 }
+  } catch {
+    preferTimer.value = { enabled: false, minutes: 30 }
+  }
+}
+async function setPreferTimer(v) {
+  try {
+    const d = await post('/api/prefer/timer', { enabled: v, minutes: Number(preferMinutes.value) })
+    if (d && d.ok) {
+      preferTimer.value = { enabled: v, minutes: d.status?.minutes || Number(preferMinutes.value) }
+      toast(v ? '定时健康检测已开启' : '定时健康检测已关闭')
+    } else {
+      toast((d && d.error) || '操作失败', 'err')
+    }
+  } catch (e) {
+    toast('操作失败: ' + e.message, 'err')
+  }
+}
+async function savePreferMinutes() {
+  if (!preferTimer.value.enabled) return
+  await setPreferTimer(true)
+}
+
+onMounted(loadPreferTimer)
 
 const keepSel = ref('100')
 const logSel = ref('0')
@@ -27,7 +91,6 @@ const certYears = computed(() => String(s.value.ca_years || 10))
 const freq = computed(() => s.value.dev_freq || 'weekly')
 const inLog = computed(() => (s.value.log_max_bytes || 0) > 0)
 const inBackup = computed(() => (s.value.backup_keep || 0) > 0)
-const inDNS = computed(() => !!(store.status && store.status.dns_redirect))
 
 const mbps = ref('20')
 watch(
@@ -92,6 +155,118 @@ async function save(partial, tip = '已保存') {
     toast('保存失败: ' + e.message, 'err')
   }
 }
+
+function portNum(x, def) {
+  const n = parseInt(x, 10)
+  return Number.isFinite(n) && n > 0 && n < 65536 ? n : def
+}
+function savePorts() {
+  const h = portNum(httpsPort.value, 25584)
+  const p = portNum(httpPort.value, 24196)
+  if (h === p) {
+    toast('HTTPS 与 HTTP 端口不能相同', 'err')
+    return
+  }
+  httpsPort.value = String(h)
+  httpPort.value = String(p)
+  save({ https_port: h, http_port: p }, '端口已保存，点击下方“重载服务”生效')
+}
+async function reloadServices() {
+  if (portNum(httpsPort.value, 25584) !== (s.value.https_port || 25584) || portNum(httpPort.value, 24196) !== (s.value.http_port || 24196)) {
+    const h = portNum(httpsPort.value, 25584)
+    const p = portNum(httpPort.value, 24196)
+    if (h === p) {
+      toast('HTTPS 与 HTTP 端口不能相同', 'err')
+      return
+    }
+    try {
+      await put('/api/settings', { https_port: h, http_port: p })
+      store.settings = { ...s.value, https_port: h, http_port: p }
+    } catch (e) {
+      toast('保存端口失败: ' + e.message, 'err')
+      return
+    }
+  }
+  try {
+    await post('/api/services/reload', {})
+    toast('配置已重新生成，服务已重载')
+    reload()
+  } catch (e) {
+    toast('重载失败: ' + e.message, 'err')
+  }
+}
+
+function saveDNSPort(v) {
+  save({ dns_listen: v.trim() }, 'DNS 监听地址已保存')
+}
+function saveDNSUpstream() {
+  const parts = dnsUpstreamTxt.value
+    .split(/[,，\s]+/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+  if (!parts.length) {
+    toast('请输入至少一个上游 DNS', 'err')
+    return
+  }
+  const normalized = parts.map((p) => {
+    if (/^\d+$/.test(p)) return p + ':53'
+    if (!/:\d+$/.test(p)) return p + ':53'
+    return p
+  })
+  dnsUpstreamTxt.value = normalized.join(', ')
+  save({ dns_upstream: normalized }, '上游 DNS 已保存')
+}
+function saveDNSTTL(v) {
+  const n = parseInt(v, 10)
+  if (!Number.isFinite(n) || n < 1) {
+    dnsTTL.value = String(s.value.dns_ttl || 600)
+    toast('TTL 须为不小于 1 的整数', 'err')
+    return
+  }
+  dnsTTL.value = String(n)
+  save({ dns_ttl: n }, 'DNS TTL 已保存')
+}
+function saveDNSAnswer(v) {
+  save({ dns_answer_ip: v.trim() }, 'DNS 应答 IP 已保存')
+}
+
+async function toggleResolv(v) {
+  try {
+    const d = await post('/api/dns/resolv', { enabled: v })
+    if (d && d.ok) {
+      store.settings = { ...s.value, dns_resolv_managed: v }
+      toast(d.output ? v ? '已接管系统解析器（/etc/resolv.conf）' : '已释放系统解析器' : 'DNS 解析器设置已保存')
+    } else {
+      toast((d && d.output) || (d && d.error) || '操作失败', 'err')
+    }
+    reload()
+  } catch (e) {
+    toast('操作失败: ' + e.message, 'err')
+  }
+}
+async function toggleLAN(v) {
+  try {
+    const d = await post('/api/dns/lan', { enabled: v })
+    if (d && d.ok) {
+      store.settings = { ...s.value, dns_lan_redirect: v }
+      toast(v ? '局域网 53 端口重定向已生效（需已启动 DNS 服务）' : '局域网 53 端口重定向已移除')
+    } else {
+      toast((d && d.output) || (d && d.error) || '操作失败', 'err')
+    }
+    reloadFromDNS()
+    reload()
+  } catch (e) {
+    toast('操作失败: ' + e.message, 'err')
+  }
+}
+async function reloadFromDNS() {
+  try {
+    store.dns = await get('/api/dns')
+  } catch {
+    store.dns = null
+  }
+}
+onMounted(reloadFromDNS)
 
 function saveAst(v) {
   if (v === ast.value) return
@@ -260,11 +435,25 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         <input class="inp" type="text" spellcheck="false" :value="s.bind_ip || '127.0.0.1'" @change="(e) => save({ bind_ip: e.target.value.trim() }, '监听地址已保存')">
       </SettingRow>
       <SettingRow
-        title="监听端口"
-        subtitle="HTTP 默认 80 / HTTPS 默认 443；当前固定由 caddy 接管"
+        title="HTTPS 监听端口"
+        subtitle="caddy 接管 HTTPS（默认 25584），修改后需重载服务"
         :icon="Signal"
       >
-        <input class="inp" type="text" value="80 / 443" disabled>
+        <input class="inp" type="number" min="1" max="65535" v-model="httpsPort" @keyup.enter="savePorts" @blur="savePorts" />
+      </SettingRow>
+      <SettingRow
+        title="HTTP 监听端口"
+        subtitle="caddy 接管 HTTP（默认 24196），修改后需重载服务"
+        :icon="Signal"
+      >
+        <input class="inp" type="number" min="1" max="65535" v-model="httpPort" @keyup.enter="savePorts" @blur="savePorts" />
+      </SettingRow>
+      <SettingRow
+        title="重载代理服务"
+        subtitle="重新生成配置并使端口 / 规则 / 上游域名变更生效"
+        :icon="RefreshCw"
+      >
+        <button class="btn sec" @click="reloadServices"><RefreshCw :size="15" /> 重载服务</button>
       </SettingRow>
     </SettingCard>
 
@@ -297,14 +486,63 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
       </SettingRow>
     </SettingCard>
 
-    <!-- ④ DNS 重定向模式 -->
-    <SettingCard title="DNS 重定向模式" :icon="Globe">
+    <!-- ④ DNS 能力组 -->
+    <SettingCard title="DNS 能力组" :icon="Globe">
       <SettingRow
-        title="启用DNS重定向"
-        subtitle="由 steam302-web-dnsd 接管对游戏/CDN 域名的解析请求"
+        title="启用本地 DNS 服务"
+        subtitle="由 steam302-web-dnsd 接管对游戏/CDN 域名的解析请求，以支持自定义解析与完整伪 SNI"
         :icon="Globe"
       >
-        <ToggleSwitch :model-value="inDNS" @change="toggleDNS" />
+        <ToggleSwitch :model-value="dnsActive" @change="toggleDNS" />
+      </SettingRow>
+      <SettingRow
+        title="监听地址"
+        subtitle="DNS 服务监听地址，默认 127.0.0.1:53"
+        :icon="Network"
+      >
+        <input class="inp" type="text" spellcheck="false" :value="dnsListen" @change="(e) => (dnsListen = e.target.value, saveDNSPort(e.target.value))">
+      </SettingRow>
+      <SettingRow
+        title="上游 DNS"
+        subtitle="逗号分隔，可带端口；将未拦截域名递归转发给这些解析器"
+        :icon="Globe"
+      >
+        <input class="inp wide" type="text" spellcheck="false" v-model="dnsUpstreamTxt" @keyup.enter="saveDNSUpstream" @blur="saveDNSUpstream">
+      </SettingRow>
+      <SettingRow
+        title="TTL"
+        subtitle="域名结果生效时长（秒）"
+        :icon="Clock"
+      >
+        <input class="inp" type="number" min="1" v-model="dnsTTL" @keyup.enter="saveDNSTTL" @blur="saveDNSTTL">
+      </SettingRow>
+      <SettingRow
+        title="应答 IP"
+        subtitle="被劫持的域名应答给本机/局域网设备的 IP（默认 127.0.0.1）"
+        :icon="Globe"
+      >
+        <input class="inp" type="text" spellcheck="false" :value="dnsAnswerIP" @change="(e) => (dnsAnswerIP = e.target.value, saveDNSAnswer(e.target.value))">
+      </SettingRow>
+      <SettingRow
+        title="查询日志"
+        subtitle="记录 DNS 查询到 config/dnsd_queries.log，便于排查"
+        :icon="List"
+      >
+        <ToggleSwitch :model-value="!!s.dns_query_log" @change="(v) => save({ dns_query_log: v }, v ? 'DNS 查询日志已开启' : 'DNS 查询日志已关闭')" />
+      </SettingRow>
+      <SettingRow
+        title="系统解析器接管"
+        subtitle="把 /etc/resolv.conf 指向本地 DNS 服务（dnsredir 管理，含快照还原）"
+        :icon="File"
+      >
+        <ToggleSwitch :model-value="dnsResolv" @change="toggleResolv" />
+      </SettingRow>
+      <SettingRow
+        title="局域网 53 端口重定向"
+        subtitle="将局域网内设备发往 53 端口的 DNS 请求重定向到本地 DNS（iptables）"
+        :icon="Network"
+      >
+        <ToggleSwitch :model-value="dnsLAN" @change="toggleLAN" />
       </SettingRow>
     </SettingCard>
 
@@ -340,6 +578,21 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
           @blur="saveMbps"
         >
         <span class="unitlabel">Mbps</span>
+      </SettingRow>
+      <SettingRow
+        title="定时健康检测"
+        :subtitle="preferTimer.enabled ? 'systemd timer 每 ' + preferMinutes + ' 分钟自动测速并更新优选边缘' : '定期自动测速，替换失速的边缘，保持 CDN 优选新鲜'"
+        :icon="Clock"
+      >
+        <div class="pair">
+          <ToggleSwitch :model-value="preferTimer.enabled" @change="setPreferTimer" />
+          <CustomSelect
+            :model-value="preferMinutes"
+            :options="preferMinOptions"
+            :disabled="!preferTimer.enabled"
+            @change="(e) => { preferTimer.minutes = Number(e.value); savePreferMinutes() }"
+          />
+        </div>
       </SettingRow>
       <SettingRow
         title="上游域名 (Steam相关)"
@@ -407,6 +660,13 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         :icon="Copy"
       >
         <button class="btn ghostb" @click="loadProfile">复制代理设置</button>
+      </SettingRow>
+      <SettingRow
+        title="下载 PAC 文件"
+        subtitle="浏览器/系统代理可导入 proxy.pac 按规则自动分流"
+        :icon="Download"
+      >
+        <a class="btn ghostb" href="/proxy.pac" download="proxy.pac"><Download :size="15" /> 下载 PAC</a>
       </SettingRow>
       <SettingRow
         title="日志自动清除"
@@ -480,6 +740,9 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
 .inp.unit {
   width: 110px;
   text-align: right;
+}
+.inp.wide {
+  width: 320px;
 }
 .unitlabel {
   color: var(--color-muted);

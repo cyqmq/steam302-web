@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -33,6 +32,7 @@ type Config struct {
 	LogFile     string    `json:"log_file"`
 	LogMaxBytes int64     `json:"log_max_bytes"`
 	Mappings    []Mapping `json:"mappings"`
+	AdminAddr   string    `json:"admin_addr,omitempty"` // 回环连接监控端口（如 127.0.0.1:28001）
 }
 
 // IsZero reports whether the config has no mappings to run.
@@ -46,7 +46,8 @@ func (c Config) BindParam(m Mapping) string {
 }
 
 // Serve runs all forwarding listeners until ctx is cancelled or a listener
-// fails to bind; the first bind error is returned.
+// fails to bind; the first bind error is returned. When cfg.AdminAddr is set,
+// a loopback JSON API (GET /conns 等) 一并启动，供外部读取连接监控。
 func Serve(ctx context.Context, cfg Config) error {
 	if cfg.Bind == "" {
 		cfg.Bind = "127.0.0.1"
@@ -54,13 +55,17 @@ func Serve(ctx context.Context, cfg Config) error {
 	if cfg.IsZero() {
 		return errors.New("fwd: no forwarding mappings configured")
 	}
+	tr := newTracker(1000)
+	if cfg.AdminAddr != "" {
+		go serveAdmin(cfg.AdminAddr, tr)
+	}
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(cfg.Mappings))
 	for _, m := range cfg.Mappings {
 		wg.Add(1)
 		go func(m Mapping) {
 			defer wg.Done()
-			if err := serveOne(ctx, cfg, m); err != nil {
+			if err := serveOne(ctx, cfg, m, tr); err != nil {
 				select {
 				case errCh <- fmt.Errorf("%s -> %d: %w", cfg.BindParam(m), m.To, err):
 				default:
@@ -77,7 +82,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 }
 
-func serveOne(ctx context.Context, cfg Config, m Mapping) error {
+func serveOne(ctx context.Context, cfg Config, m Mapping, tr *tracker) error {
 	ln, err := net.Listen("tcp", cfg.BindParam(m))
 	if err != nil {
 		return err
@@ -98,36 +103,8 @@ func serveOne(ctx context.Context, cfg Config, m Mapping) error {
 			}
 			return err
 		}
-		go proxy(c, net.JoinHostPort(cfg.Bind, strconv.Itoa(m.To)))
+		go tr.proxy(c, net.JoinHostPort(cfg.Bind, strconv.Itoa(m.To)))
 	}
-}
-
-// proxy pipes data in both directions and closes both ends when either side
-// finishes.
-func proxy(c net.Conn, dst string) {
-	defer c.Close()
-	up, err := net.DialTimeout("tcp", dst, 10*time.Second)
-	if err != nil {
-		return
-	}
-	defer up.Close()
-	done := make(chan struct{}, 2)
-	go func() {
-		defer func() { done <- struct{}{} }()
-		_, _ = io.Copy(up, c)
-		if tcp, ok := up.(*net.TCPConn); ok {
-			_ = tcp.CloseWrite()
-		}
-	}()
-	go func() {
-		defer func() { done <- struct{}{} }()
-		_, _ = io.Copy(c, up)
-		if tcp, ok := c.(*net.TCPConn); ok {
-			_ = tcp.CloseWrite()
-		}
-	}()
-	<-done
-	<-done
 }
 
 // Daemon manages the detached run process through a pid file.

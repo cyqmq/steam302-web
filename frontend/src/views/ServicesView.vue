@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed, inject } from 'vue'
+import { ref, computed, inject, onMounted } from 'vue'
 import {
-  Pencil, ListPlus, CheckSquare, Square, RefreshCw, Power, Search, X, List, Globe
+  Pencil, ListPlus, CheckSquare, Square, RefreshCw, Power, Search, X, List, Globe, Network
 } from 'lucide-vue-next'
 import ToggleSwitch from '../components/ToggleSwitch.vue'
 import EditorModal from '../components/EditorModal.vue'
@@ -37,13 +37,19 @@ const FEAT = {
   xbox_cloud: { g: 'other', t: 'XBOX 下载CDN重定向国内', d: '将 Xbox 下载重定向至国内 CDN，提升下载速度。' },
   origin_dl: { g: 'other', t: 'Origin 游戏下载（HTTPS→HTTP）', d: 'origin-a.akamaihd.net：反代到 HTTP 流媒体边缘绕过高昂 HTTPS 出口。' },
   pixiv_accel: { g: 'other', t: 'Pixiv 直连', d: 'pixiv 全系主站/API 直连日本源站，图片走专用节点。' },
-  hb_fanatical_imgfix: { g: 'other', t: 'HB / Fanatical 图片修复', d: '修复 Humble Bundle / Fanatical 商店图片加载。' }
+  hb_fanatical_imgfix: { g: 'other', t: 'HB / Fanatical 图片修复', d: '修复 Humble Bundle / Fanatical 商店图片加载。' },
+  x_accel: { g: 'more', t: 'X / Twitter 加速', d: 'X(Twitter) 全系域名走 CF 优选边缘直连。' },
+  epic_accel: { g: 'more', t: 'Epic 商城/启动器加速', d: 'Epic 商店/启动器/下载走优选边缘直连。' },
+  reddit_accel: { g: 'more', t: 'Reddit 加速', d: 'Reddit 主站/图片走 Fastly 优选边缘直连。' },
+  instagram_accel: { g: 'more', t: 'Instagram 加速', d: 'Instagram 主站/图片走 Meta 边缘优选直连。' },
+  wikipedia_accel: { g: 'more', t: '维基百科加速', d: 'Wikipedia/Wikimedia 走 CF 优选边缘直连。' }
 }
 
 const SECT = [
   { key: 'steam', label: 'Steam 卡片' },
   { key: 'ea', label: 'EA 卡片' },
-  { key: 'other', label: '其他服务' }
+  { key: 'other', label: '其他服务' },
+  { key: 'more', label: '更多可加速服务（默认关闭）' }
 ]
 
 const q = ref('')
@@ -136,6 +142,7 @@ async function startAll() {
       toast((d && (d.error || d.hint)) || '启动失败', 'err')
     }
     reload()
+    loadDns()
   } catch (e) {
     toast('启动失败: ' + e.message, 'err')
   }
@@ -150,6 +157,11 @@ async function regen() {
   }
 }
 
+async function refreshAll() {
+  await reloadStatus()
+  await loadDns()
+}
+
 function unitCN(s) {
   if (!s) return '-'
   const m = {
@@ -161,6 +173,33 @@ function unitCN(s) {
   }
   return m[s] || s
 }
+
+// DNS 详情快照
+const dnsSnap = ref(null)
+async function loadDns() {
+  try {
+    dnsSnap.value = await get('/api/dns')
+  } catch {
+    dnsSnap.value = null
+  }
+}
+onMounted(loadDns)
+const dnsDetail = computed(() => {
+  const d = dnsSnap.value
+  if (!d) return []
+  const rows = [
+    { k: 'DNS 服务', v: d.active ? '运行中' : '已停止' },
+    { k: '监听地址', v: d.listen || '-' }
+  ]
+  if (d.upstream && d.upstream.length) rows.push({ k: '上游 DNS', v: d.upstream.join(', ') })
+  if (d.ttl) rows.push({ k: 'TTL (秒)', v: String(d.ttl) })
+  if (d.answer_ip) rows.push({ k: '应答 IP', v: d.answer_ip })
+  rows.push({ k: '自定义解析', v: d.user_rules ? '已启用' : '关闭' })
+  rows.push({ k: '查询日志', v: d.query_log ? '已启用' : '关闭' })
+  rows.push({ k: '系统解析器接管', v: d.resolv_managed ? '已接管' : '未接管' })
+  rows.push({ k: '局域网 53 重定向', v: d.lan_redirect ? '已生效' : '未生效' })
+  return rows
+})
 
 const vitals = computed(() => {
   const s = st.value
@@ -248,7 +287,7 @@ const comps = computed(() => {
           <button class="btn" @click="startAll()"><Power :size="14" /> 启动服务</button>
           <button class="btn sec" @click="stopAll()"><Power :size="14" /> 停止服务</button>
           <button class="btn ghostb" @click="regen()"><RefreshCw :size="14" /> 重载配置</button>
-          <button class="btn ghostb" @click="reloadStatus()"><RefreshCw :size="14" /> 刷新状态</button>
+          <button class="btn ghostb" @click="refreshAll()"><RefreshCw :size="14" /> 刷新状态</button>
         </div>
       </div>
 
@@ -258,6 +297,18 @@ const comps = computed(() => {
           <span class="vk">{{ v.k }}</span>
           <span class="vv">{{ v.v }}</span>
         </div>
+      </div>
+
+      <div class="vitals">
+        <h4>DNS 详情</h4>
+        <template v-if="dnsDetail.length">
+          <div v-for="d in dnsDetail" :key="d.k" class="vi">
+            <span class="vk">{{ d.k }}</span>
+            <span class="vv" :class="['运行中', '已接管', '已生效'].includes(d.v) ? 'on' : d.v === '已停止' || d.v === '未接管' || d.v === '未生效' ? 'off' : ''">{{ d.v }}</span>
+          </div>
+        </template>
+        <div v-else class="dd-empty"><Network :size="14" /> DNS 快照不可用</div>
+        <div class="vi"><span class="vk">Twitch 掉宝</span><span class="vv off">依赖 caddy 注入，需自行重编译</span></div>
       </div>
 
       <div class="vitals">
@@ -496,6 +547,14 @@ const comps = computed(() => {
 }
 .vv.na {
   color: var(--color-muted);
+}
+.dd-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  color: var(--color-faint);
+  font-size: 12px;
 }
 .empty {
   text-align: center;

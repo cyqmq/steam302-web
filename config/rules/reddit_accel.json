@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "reddit_accel",
+  "name": "Reddit 加速",
+  "group": "more",
+  "description": "Reddit 主站/图片/静态资源走 Fastly 优选边缘直连，减少 CDN 绕行。默认关闭；效果视运营商而定，异常请关闭。",
+  "enabled": false,
+  "sites": [
+    {
+      "hosts": ["reddit.com", "www.reddit.com", "old.reddit.com", "np.reddit.com"],
+      "prefer": { "mode": "cf", "cidrs": ["151.101.0.0/16"], "samples_per_cidr": 16, "top_n": 3, "validate": true, "validate_any_status": true },
+      "handlers": [
+        { "type": "reverse_proxy", "upstreams": ["https://151.101.1.1"], "lb": { "policy": "round_robin" }, "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": true }, "header_up": [["Host", "{host}"]] }
+      ]
+    },
+    {
+      "hosts": ["i.redd.it", "preview.redd.it", "external-preview.redd.it", "v.redd.it", "www.redditstatic.com", "www.redditmedia.com", "styles.redditmedia.com"],
+      "prefer": { "mode": "cf", "cidrs": ["151.101.0.0/16"], "samples_per_cidr": 16, "top_n": 3, "validate": true, "validate_any_status": true },
+      "handlers": [
+        { "type": "reverse_proxy", "upstreams": ["https://151.101.1.1"], "lb": { "policy": "round_robin" }, "transport": { "tls": true, "tls_server_name": "{host}", "insecure_skip_verify": true }, "header_up": [["Host", "{host}"]] }
+      ]
+    }
+  ]
+}

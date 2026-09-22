@@ -9,9 +9,27 @@ type Env struct {
 	Hosts            Hosts                      `json:"hosts"`
 	Fwd              Fwd                        `json:"fwd"`
 	Prefer           PreferConfig               `json:"prefer"`
+	DNS              DNS                        `json:"dns"`
 	UpstreamDefaults map[string]json.RawMessage `json:"upstream_defaults"`
 	UI               UI                         `json:"ui,omitempty"`
 	Notes            string                     `json:"notes"`
+}
+
+// DNS 是本机 DNS 重定向（systemd steam302-web-dnsd）的可配置参数，
+// 由 cmd/dnsd 读取；Listen 为空时保持默认 127.0.0.1:53。
+type DNS struct {
+	Listen       string   `json:"listen,omitempty"`
+	Upstream     []string `json:"upstream,omitempty"`
+	TTL          uint32   `json:"ttl,omitempty"`
+	AnswerIP     string   `json:"answer_ip,omitempty"`
+	QueryLog     bool     `json:"query_log,omitempty"`
+	QueryLogFile string   `json:"query_log_file,omitempty"`
+	UserRules    bool     `json:"user_rules,omitempty"`
+	UserRulesDir string   `json:"user_rules_file,omitempty"`
+	// ResolvManaged / LANRedirect 是 bin/dnsredir 施加的系统级重定向，
+	// 记录状态供 UI 展示（实际规则由 dnsredir 管理）。
+	ResolvManaged bool `json:"resolv_managed,omitempty"`
+	LANRedirect   bool `json:"lan_redirect,omitempty"`
 }
 
 // UI 是 Web 控制台「设置→启动行为」的偏好（对应原版桌面端的启动/退出行为；Web
@@ -53,6 +71,8 @@ type Fwd struct {
 	LogFile     string   `json:"log_file"`
 	LogMaxBytes int64    `json:"log_max_bytes"` // 达到该字节数时轮转（0=默认 5MB）
 	Mappings    []FwdMap `json:"mappings"`
+	// AdminAddr 是转发进程暴露的回环管理端口（JSON），供 webui 读取连接监控。
+	AdminAddr string `json:"admin_addr,omitempty"`
 }
 
 type FwdMap struct {

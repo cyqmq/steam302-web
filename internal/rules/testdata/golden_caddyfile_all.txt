@@ -223,6 +223,32 @@ reverse_proxy https://api2.origin.com {
 }
 }
 
+https://epicgames.com:25584 https://www.epicgames.com:25584 https://store.epicgames.com:25584 https://launcher-public-service-prod06.ol.epicgames.com:25584 https://api.epicgames.dev:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://151.101.1.1 {
+    lb_policy round_robin
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://assets.epicgames.com:25584 https://static-assets-prod.epicgames.com:25584 https://turbo-client.epicgames.com:25584 https://epicgames-download1.akamaized.net:25584 https://dl.epicgames.com:25584 https://cdn1.epicgames.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://151.101.1.1 {
+    lb_policy round_robin
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
 https://ap-southeast-2-prod-prodpc01-reg-httpping.p76prod.systems:25584 https://eu-central-1-prod-prodpc01-reg-httpping.p76prod.systems:25584 https://eu-west-1-prod-prodpc01-reg-httpping.p76prod.systems:25584 https://us-east-1-prod-prodpc01-reg-httpping.p76prod.systems:25584 {
     tls config/certs/leaf.pem config/certs/leaf.key
 respond 200 {
@@ -559,6 +585,19 @@ reverse_proxy https://imgix.map.fastly.net {
 }
 }
 
+https://instagram.com:25584 https://www.instagram.com:25584 https://i.instagram.com:25584 https://*.instagram.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://157.240.1.1 {
+    lb_policy round_robin
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
 https://cdn.jsdelivr.net:25584 {
     tls config/certs/leaf.pem config/certs/leaf.key
     @preflight {
@@ -761,6 +800,32 @@ reverse_proxy https://210.140.174.37 https://210.140.175.130 https://210.140.170
     header_up Host {host}
     transport http {
         tls
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://reddit.com:25584 https://www.reddit.com:25584 https://old.reddit.com:25584 https://np.reddit.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://151.101.1.1 {
+    lb_policy round_robin
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://i.redd.it:25584 https://preview.redd.it:25584 https://external-preview.redd.it:25584 https://v.redd.it:25584 https://www.redditstatic.com:25584 https://www.redditmedia.com:25584 https://styles.redditmedia.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://151.101.1.1 {
+    lb_policy round_robin
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
         tls_insecure_skip_verify
     }
 }
@@ -1210,6 +1275,58 @@ reverse_proxy https://static.cdn.ubi.com {
     transport http {
         tls
         tls_server_name static3.cdn.ubi.com
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://wikipedia.org:25584 https://www.wikipedia.org:25584 https://*.wikipedia.org:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://104.16.0.1 {
+    lb_policy round_robin
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://wikimedia.org:25584 https://www.wikimedia.org:25584 https://upload.wikimedia.org:25584 https://*.wikimedia.org:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://104.16.0.1 {
+    lb_policy round_robin
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://x.com:25584 https://www.x.com:25584 https://twitter.com:25584 https://www.twitter.com:25584 https://api.twitter.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://104.16.0.1 {
+    lb_policy round_robin
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
+        tls_insecure_skip_verify
+    }
+}
+}
+
+https://abs.twimg.com:25584 https://pbs.twimg.com:25584 https://video.twimg.com:25584 https://upload.twitter.com:25584 https://cdn.syndication.twimg.com:25584 {
+    tls config/certs/leaf.pem config/certs/leaf.key
+reverse_proxy https://104.16.0.1 {
+    lb_policy round_robin
+    header_up Host {host}
+    transport http {
+        tls
+        tls_server_name {host}
         tls_insecure_skip_verify
     }
 }
