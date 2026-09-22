@@ -37,8 +37,8 @@ const emit = defineEmits(['update:modelValue'])
   white-space: nowrap;
 }
 .cr:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
+  background: var(--color-hover);
+  color: var(--color-strong);
 }
 .cr[aria-disabled='true'] {
   opacity: 0.45;
@@ -46,7 +46,7 @@ const emit = defineEmits(['update:modelValue'])
 }
 .cr.on {
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--color-strong);
   background: var(--color-primary-dim);
 }
 input {
@@ -60,7 +60,7 @@ input {
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  border: 1.5px solid #55484b;
+  border: 1.5px solid var(--color-line-strong);
   background: transparent;
   display: flex;
   align-items: center;

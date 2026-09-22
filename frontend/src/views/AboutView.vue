@@ -35,7 +35,7 @@ function home() {
     <div class="crd">
       <div class="mark"><Repeat :size="26" /></div>
       <h1 class="nm">Steamcommunity 302 Web</h1>
-      <p class="ds">steamcommunity 302 网页管理端 — 纯前端 Vue3 复刻原版 SukiUI 深红风格</p>
+      <p class="ds">steamcommunity 302 网页管理端 — 前端 Vue3 复刻原版 Steamcommunity 302 桌面版</p>
 
       <div class="kv">
         <div class="li"><span>版本</span><b>v{{ v().version || '2.0.0' }}</b></div>
@@ -59,7 +59,7 @@ function home() {
       </div>
 
       <p class="lic">
-        该项目使用 MIT 许可证，界面风格致敬 Avalonia · SukiUI 的「Steamcommunity 302」桌面版。
+        By.羽翼城|Dogfight360 · Donate / 打赏开发者 — 本 Web 管理端为兼容复刻，功能以 Web 后端支持范围为准。
       </p>
     </div>
   </div>
@@ -75,24 +75,24 @@ function home() {
   width: min(520px, 100%);
   background: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: 14px;
-  padding: 34px 36px;
+  border-radius: 6px;
+  padding: 30px 32px;
   text-align: center;
 }
 .mark {
   width: 60px;
   height: 60px;
   margin: 0 auto 16px;
-  border-radius: 16px;
+  border-radius: 14px;
   background: linear-gradient(135deg, var(--color-primary-hi), var(--color-primary));
-  color: #fff;
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .nm {
   margin: 0;
-  color: #fff;
+  color: var(--color-strong);
   font-size: 20px;
 }
 .ds {
@@ -131,7 +131,7 @@ function home() {
   border: 0;
   border-radius: 6px;
   background: linear-gradient(135deg, var(--color-primary-hi), var(--color-primary));
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   font-size: 13px;
   padding: 9px 18px;
@@ -145,7 +145,7 @@ function home() {
 }
 .btn.sec {
   background: var(--color-primary-deep);
-  color: #f0a9af;
+  color: var(--color-on-deep);
 }
 .btn.sec:hover {
   filter: brightness(1.25);

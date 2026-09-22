@@ -108,7 +108,7 @@ async function save() {
 }
 .ti {
   font-weight: 700;
-  color: #fff;
+  color: var(--color-strong);
   font-size: 14px;
 }
 .x {
@@ -121,7 +121,7 @@ async function save() {
   display: inline-flex;
 }
 .x:hover {
-  color: #fff;
+  color: var(--color-strong);
   background: var(--color-primary-deep);
 }
 .ta {
@@ -129,8 +129,8 @@ async function save() {
   height: 380px;
   resize: vertical;
   border: 0;
-  background: #171516;
-  color: #e8e8e6;
+  background: var(--color-term-bg);
+  color: var(--color-term-fg);
   font: 12.5px/1.55 ui-monospace, Consolas, monospace;
   padding: 14px 16px;
   outline: none;
@@ -155,7 +155,7 @@ async function save() {
   border: 0;
   border-radius: 8px;
   background: linear-gradient(135deg, var(--color-primary-hi), var(--color-primary));
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   font-size: 12.5px;
   padding: 7px 14px;
@@ -173,7 +173,7 @@ async function save() {
   color: var(--color-muted);
 }
 .btn.ghostb:hover {
-  color: #fff;
+  color: var(--color-strong);
   border-color: var(--color-primary);
 }
 </style>

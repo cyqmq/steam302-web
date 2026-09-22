@@ -34,10 +34,10 @@ function change(e) {
   cursor: pointer;
   user-select: none;
   font-size: 12.5px;
-  color: #c9c9cf;
+  color: var(--color-fg);
 }
 .cc:hover {
-  color: #fff;
+  color: var(--color-strong);
 }
 .cc[aria-disabled='true'] {
   opacity: 0.45;
@@ -53,9 +53,9 @@ input {
 .sqr {
   width: 17px;
   height: 17px;
-  border: 1.5px solid #55484b;
+  border: 1.5px solid var(--color-line-strong);
   border-radius: 4px;
-  background: #221d1e;
+  background: var(--color-card);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -63,7 +63,7 @@ input {
   flex: none;
 }
 .tick {
-  color: #fff;
+  color: var(--on-accent);
   font-size: 12px;
   font-weight: 800;
   opacity: 0;

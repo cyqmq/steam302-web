@@ -20,13 +20,13 @@ defineProps({
 .setting-card {
   background: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 6px;
   margin-bottom: 14px;
   overflow: hidden;
   transition: border-color 0.15s;
 }
 .setting-card:hover {
-  border-color: #4a4142;
+  border-color: var(--color-line-strong);
 }
 .card-head {
   display: flex;
@@ -42,7 +42,7 @@ defineProps({
   margin: 0;
   font-size: 14.5px;
   font-weight: 700;
-  color: #fff;
+  color: var(--color-strong);
 }
 .head-act {
   margin-left: auto;

@@ -44,9 +44,9 @@ function change(e) {
 select {
   appearance: none;
   -webkit-appearance: none;
-  background: #221d1e;
+  background: var(--color-card);
   border: 1px solid var(--color-border);
-  color: #fff;
+  color: var(--color-fg);
   border-radius: 6px;
   padding: 7px 32px 7px 11px;
   font-size: 13px;
@@ -54,8 +54,8 @@ select {
   transition: all 0.15s;
 }
 select:hover {
-  background: #282224;
-  border-color: #4a4142;
+  background: var(--color-hover);
+  border-color: var(--color-line-strong);
 }
 select:focus {
   outline: none;

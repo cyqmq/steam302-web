@@ -1,16 +1,18 @@
 <script setup>
 import { ref, shallowRef, provide, markRaw, onMounted, computed } from 'vue'
-import { Server, Settings, ScrollText, Info, Power, Repeat, Circle } from 'lucide-vue-next'
+import { Server, Settings, Activity, ScrollText, Info, Power, Repeat } from 'lucide-vue-next'
 import ServicesView from './views/ServicesView.vue'
 import SettingsView from './views/SettingsView.vue'
+import ConnectionsView from './views/ConnectionsView.vue'
 import LogsView from './views/LogsView.vue'
 import AboutView from './views/AboutView.vue'
 import { reloadAll, loadStatus } from './lib/data.js'
-import { store } from './lib/state.js'
+import { store, setTheme } from './lib/state.js'
 
 const tabs = [
   { key: 'services', label: '服务', icon: Server, comp: markRaw(ServicesView), sub: '开关代理规则 · 服务控制' },
-  { key: 'settings', label: '设置', icon: Settings, comp: markRaw(SettingsView), sub: '程序行为 · 网络 · 证书' },
+  { key: 'settings', label: '设置', icon: Settings, comp: markRaw(SettingsView), sub: '网络与程序设置' },
+  { key: 'connections', label: '连接', icon: Activity, comp: markRaw(ConnectionsView), sub: '活动转发会话' },
   { key: 'logs', label: '日志', icon: ScrollText, comp: markRaw(LogsView), sub: '实时后端日志' },
   { key: 'about', label: '关于', icon: Info, comp: markRaw(AboutView), sub: '版本与更新' }
 ]
@@ -30,7 +32,24 @@ const svcOn = () => {
   return svcs.fwd === 'active' || svcs.caddy === 'active'
 }
 
+const enabledCount = computed(() => store.rules.filter((r) => r.enabled).length)
+const totalCount = computed(() => store.rules.length)
 const versionText = () => store.version?.version || ''
+
+const THEME_LABEL = { auto: '跟随系统', light: '浅色', dark: '深色' }
+function nextTheme() {
+  const order = ['auto', 'light', 'dark']
+  const i = order.indexOf(store.theme)
+  const next = order[(i + 1) % order.length]
+  setTheme(next)
+  const el = document.getElementById('toast')
+  if (el) {
+    el.textContent = '主题模式：' + THEME_LABEL[next]
+    el.className = 'show ok'
+    clearTimeout(el._t)
+    el._t = setTimeout(() => (el.className = ''), 1800)
+  }
+}
 
 function quit() {
   window.close()
@@ -80,7 +99,8 @@ onMounted(() => {
       <div class="side-foot">
         <div class="svc">
           <span class="dot" :class="{ on: svcOn() }"></span>
-          {{ svcOn() ? '服务运行中' : '服务未运行' }}
+          <span class="conn">{{ svcOn() ? '已连接' : '未连接' }}</span>
+          <span class="cnt">{{ enabledCount }}/{{ totalCount }} 规则启用</span>
         </div>
         <button class="quit" @click="quit"><Power :size="14" /> 退出UI</button>
       </div>
@@ -88,10 +108,13 @@ onMounted(() => {
 
     <main class="main">
       <header class="hd">
-        <div>
+        <div class="hd-txt">
           <h1 class="hd-title">{{ cur.label }}</h1>
           <span class="hd-sub">{{ cur.sub }}</span>
         </div>
+        <button class="theme" :title="'主题模式：' + THEME_LABEL[store.theme]" @click="nextTheme">
+          <span class="t-label">{{ THEME_LABEL[store.theme] }}</span>
+        </button>
       </header>
       <div class="content">
         <div class="wrap">
@@ -129,14 +152,14 @@ onMounted(() => {
   height: 34px;
   border-radius: 6px;
   background: linear-gradient(135deg, var(--color-primary-hi), var(--color-primary));
-  color: #fff;
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   flex: none;
 }
 .bt {
-  color: #fff;
+  color: var(--color-strong);
   font-weight: 700;
   font-size: 13.5px;
   line-height: 1.25;
@@ -169,12 +192,12 @@ onMounted(() => {
   text-align: left;
 }
 .navit:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
+  background: var(--color-hover);
+  color: var(--color-strong);
 }
 .navit.active {
   background: var(--color-primary-dim);
-  color: #fff;
+  color: var(--color-strong);
 }
 .navit.active svg {
   color: var(--color-primary-hi);
@@ -193,6 +216,7 @@ onMounted(() => {
   font-size: 12px;
   color: var(--color-muted);
   padding: 0 4px;
+  flex-wrap: wrap;
 }
 .dot {
   width: 8px;
@@ -202,7 +226,14 @@ onMounted(() => {
 }
 .dot.on {
   background: var(--color-on);
-  box-shadow: 0 0 6px rgba(102, 187, 106, 0.6);
+  box-shadow: 0 0 6px rgba(101, 183, 122, 0.6);
+}
+.conn {
+  font-weight: 600;
+}
+.cnt {
+  color: var(--color-faint);
+  font-size: 11px;
 }
 .quit {
   display: flex;
@@ -212,14 +243,14 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-muted);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 8px;
   cursor: pointer;
   font-size: 12.5px;
   transition: all 0.12s;
 }
 .quit:hover {
-  color: #fff;
+  color: var(--color-strong);
   border-color: var(--color-primary);
 }
 .main {
@@ -231,16 +262,34 @@ onMounted(() => {
 .hd {
   padding: 18px 26px 4px;
   flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 .hd-title {
   margin: 0;
-  color: #fff;
+  color: var(--color-strong);
   font-size: 20px;
   font-weight: 700;
 }
 .hd-sub {
   color: var(--color-faint);
   font-size: 12px;
+}
+.theme {
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  border-radius: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  flex: none;
+}
+.theme:hover {
+  color: var(--color-primary-hi);
+  border-color: var(--color-primary);
 }
 .content {
   flex: 1;

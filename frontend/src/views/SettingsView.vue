@@ -3,7 +3,7 @@ import { ref, computed, watch, inject } from 'vue'
 import {
   Laptop, Play, RefreshCw, Minimize2, LogOut, Server, Network, Signal,
   Pencil, File, Copy, History, Globe, Zap, List, Shield, Gauge,
-  Cloud, Lock, Calendar, Info, Heart, BookOpen, Palette, Settings,
+  Cloud, Lock, Calendar, Info, Heart, BookOpen, Settings,
   Trash2
 } from 'lucide-vue-next'
 import SettingCard from '../components/SettingCard.vue'
@@ -13,7 +13,7 @@ import CustomRadio from '../components/CustomRadio.vue'
 import CustomCheckbox from '../components/CustomCheckbox.vue'
 import CustomSelect from '../components/CustomSelect.vue'
 import { put, post, get } from '../lib/api.js'
-import { store, toast, setAccent } from '../lib/state.js'
+import { store, toast } from '../lib/state.js'
 
 const reload = inject('reload', async () => {})
 
@@ -37,15 +37,15 @@ watch(
 )
 
 const freqOptions = [
-  { value: 'weekly', label: '每周一次' },
-  { value: 'daily', label: '每天一次' },
-  { value: 'none', label: '不进行赞助' }
+  { value: 'weekly', label: '每周' },
+  { value: 'daily', label: '每天' },
+  { value: 'none', label: '不赞助' }
 ]
 const keepOptions = [
   { value: '10', label: '10 份' },
+  { value: '30', label: '30 份' },
   { value: '50', label: '50 份' },
-  { value: '100', label: '100 份' },
-  { value: '500', label: '500 份' }
+  { value: '100', label: '100 份' }
 ]
 const logOptions = [
   { value: '0', label: '不限制' },
@@ -163,7 +163,7 @@ async function saveMbps() {
   try {
     await put('/api/settings', { prefer: p })
     store.settings = { ...s.value, prefer: p }
-    toast('测速速率限制已保存')
+    toast('限速设置已保存')
   } catch (e) {
     toast('保存失败: ' + e.message, 'err')
   }
@@ -198,14 +198,6 @@ async function factoryReset() {
   }
 }
 
-function nextAccent() {
-  const order = ['red', 'blue', 'purple']
-  const i = order.indexOf(store.accent)
-  const next = order[(i + 1) % order.length]
-  setAccent(next)
-  toast('已切换主题：' + (next === 'red' ? '胭脂红' : next === 'blue' ? '冰晶蓝' : '丁香紫'))
-}
-
 async function loadProfile() {
   try {
     const p = await get('/api/profile')
@@ -226,12 +218,12 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
 
 <template>
   <div class="sett">
-    <!-- ① 启动行为 -->
-    <SettingCard title="启动行为" :icon="Play">
+    <!-- ① 启动与窗口 -->
+    <SettingCard title="启动与窗口" :icon="Play">
       <template #actions><span class="noop"></span></template>
       <SettingRow
-        title="开机自动运行"
-        subtitle="后台服务 = 托管于 systemd；服务器无桌面环境时前台运行仅记录偏好"
+        title="开机后自动启动后台服务（后端）"
+        subtitle="由 systemd 托管；服务器无桌面环境时前台运行仅记录偏好"
         :icon="Laptop"
       >
         <div class="radios">
@@ -240,7 +232,7 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
           <CustomRadio :model-value="ast" value="disabled" label="禁用" @update:model-value="saveAst" />
         </div>
       </SettingRow>
-      <SettingRow title="程序启动后自动开启服务" :icon="Play">
+      <SettingRow title="打开程序后自动启动服务" :icon="Play">
         <ToggleSwitch :model-value="!!s.start_service" @change="(v) => save({ start_service: v })" />
       </SettingRow>
       <SettingRow title="启动服务后自动更新配置" :icon="RefreshCw">
@@ -249,7 +241,11 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
       <SettingRow title="退出UI时同步退出后端服务" :icon="LogOut">
         <ToggleSwitch :model-value="!!s.exit_sync" @change="(v) => save({ exit_sync: v })" />
       </SettingRow>
-      <SettingRow title="启动服务后自动最小化到托盘" :icon="Minimize2">
+      <SettingRow
+        title="启动服务后自动隐藏窗口"
+        subtitle="服务启动成功后隐藏主窗口"
+        :icon="Minimize2"
+      >
         <ToggleSwitch :model-value="!!s.minimize_tray" @change="(v) => save({ minimize_tray: v })" />
       </SettingRow>
     </SettingCard>
@@ -257,15 +253,15 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
     <!-- ② 本地监听设置 -->
     <SettingCard title="本地监听设置" :icon="Server">
       <SettingRow
-        title="本地监听 IP"
+        title="监听地址"
         subtitle="代理与转发服务绑定的回环地址"
         :icon="Network"
       >
-        <input class="inp" type="text" spellcheck="false" :value="s.bind_ip || '127.0.0.1'" @change="(e) => save({ bind_ip: e.target.value.trim() }, '监听 IP 已保存')">
+        <input class="inp" type="text" spellcheck="false" :value="s.bind_ip || '127.0.0.1'" @change="(e) => save({ bind_ip: e.target.value.trim() }, '监听地址已保存')">
       </SettingRow>
       <SettingRow
         title="监听端口"
-        subtitle="由 caddy 接管 80/443，与 302 原版一致"
+        subtitle="HTTP 默认 80 / HTTPS 默认 443；当前固定由 caddy 接管"
         :icon="Signal"
       >
         <input class="inp" type="text" value="80 / 443" disabled>
@@ -275,14 +271,14 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
     <!-- ③ hosts 模式设置 -->
     <SettingCard title="hosts 模式设置" :icon="Pencil">
       <SettingRow
-        title="自动修改 Hosts"
+        title="自动修改"
         subtitle="为需要代理的域名写入 127.0.0.1 hosts 条目"
         :icon="File"
       >
         <ToggleSwitch :model-value="hostsOn" @change="toggleHosts" />
       </SettingRow>
       <SettingRow
-        title="自动备份 Hosts"
+        title="自动备份"
         subtitle="每次修改前备份一次原文件"
         :icon="Copy"
       >
@@ -290,6 +286,7 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
       </SettingRow>
       <SettingRow
         title="备份保留数量"
+        subtitle="1–100 份"
         :icon="History"
       >
         <CustomSelect
@@ -301,7 +298,7 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
     </SettingCard>
 
     <!-- ④ DNS 重定向模式 -->
-    <SettingCard title="DNS重定向模式" :icon="Globe">
+    <SettingCard title="DNS 重定向模式" :icon="Globe">
       <SettingRow
         title="启用DNS重定向"
         subtitle="由 steam302-web-dnsd 接管对游戏/CDN 域名的解析请求"
@@ -312,12 +309,12 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
     </SettingCard>
 
     <!-- ⑥ CDN 优选 & 上游域名 -->
-    <SettingCard title="CDN优选 & 上游域名" :icon="Cloud">
+    <SettingCard title="CDN 优选 & 上游域名" :icon="Cloud">
       <template #actions>
         <button class="ibtn circle" title="重新生成代理配置" @click="regen"><RefreshCw :size="15" /></button>
       </template>
       <SettingRow
-        title="CDN优选"
+        title="CDN 优选"
         subtitle="勾选参与测速优选的 CDN 边缘"
         :icon="Zap"
       >
@@ -329,8 +326,8 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         </div>
       </SettingRow>
       <SettingRow
-        title="测速速率限制"
-        :subtitle="'当前限速 ' + (s.prefer && s.prefer.max_mbps ? s.prefer.max_mbps : 20) + ' Mbps'"
+        title="手动与启动测速总限速"
+        :subtitle="'所有并发下载共享此带宽上限（当前 ' + (s.prefer && s.prefer.max_mbps ? s.prefer.max_mbps : 20) + ' Mbps）'"
         :icon="Gauge"
       >
         <input
@@ -345,8 +342,8 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         <span class="unitlabel">Mbps</span>
       </SettingRow>
       <SettingRow
-        title="上游域名"
-        subtitle="浏览图片等资源时使用的上游源"
+        title="上游域名 (Steam相关)"
+        subtitle="用于避开部分运营商访问干扰"
         :icon="Globe"
       >
         <CustomSelect :model-value="'edge'" :options="upsOptions" disabled />
@@ -367,7 +364,7 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         />
       </SettingRow>
       <SettingRow
-        title="证书管理"
+        title="证书重置"
         subtitle="重新生成根证书或网站证书"
         :icon="Shield"
       >
@@ -376,8 +373,8 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
       </SettingRow>
     </SettingCard>
 
-    <!-- ⑧ 支持 & 教程 & 主题 -->
-    <SettingCard title="支持&教程&主题" :icon="Info">
+    <!-- ⑧ 支持 & 教程 -->
+    <SettingCard title="支持 & 教程" :icon="Info">
       <SettingRow
         title="支持开发者"
         subtitle="在应用内展示一条赞助入口"
@@ -389,7 +386,7 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
             :model-value="freqVal"
             :options="freqOptions"
             :disabled="!s.dev_support"
-            @change="(e) => { if (s.dev_support) save({ dev_freq: e.value }, '赞助频率已保存') }"
+            @change="(e) => { if (s.dev_support) save({ dev_freq: e.value }, '支持周期已保存') }"
           />
         </div>
       </SettingRow>
@@ -399,13 +396,6 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         :icon="BookOpen"
       >
         <button class="btn" @click="openTutorial"><BookOpen :size="15" /> 使用教程</button>
-      </SettingRow>
-      <SettingRow
-        title="界面主题"
-        subtitle="胭脂红 ↔ 冰晶蓝 ↔ 丁香紫"
-        :icon="Palette"
-      >
-        <button class="btn sec" @click="nextAccent"><Palette :size="15" /> 切换主题</button>
       </SettingRow>
     </SettingCard>
 
@@ -465,18 +455,18 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
   flex-wrap: wrap;
 }
 .inp {
-  background: #221d1e;
+  background: var(--color-card);
   border: 1px solid var(--color-border);
-  color: #fff;
-  border-radius: 8px;
+  color: var(--color-fg);
+  border-radius: 6px;
   padding: 7px 11px;
   font-size: 13px;
   width: 210px;
   transition: all 0.15s;
 }
 .inp:hover:not(:disabled) {
-  background: #262224;
-  border-color: #4a4142;
+  background: var(--color-hover);
+  border-color: var(--color-line-strong);
 }
 .inp:focus {
   outline: none;
@@ -497,9 +487,9 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
 }
 .btn {
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: linear-gradient(135deg, var(--color-primary-hi), var(--color-primary));
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   font-size: 13px;
   padding: 8px 16px;
@@ -514,7 +504,7 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
 }
 .btn.sec {
   background: var(--color-primary-deep);
-  color: #f0a9af;
+  color: var(--color-on-deep);
 }
 .btn.sec:hover {
   filter: brightness(1.25);
@@ -525,12 +515,12 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
   color: var(--color-muted);
 }
 .btn.ghostb:hover {
-  color: #fff;
+  color: var(--color-strong);
   border-color: var(--color-primary);
   filter: none;
 }
 .btn.warn .wi {
-  color: #ffd45e;
+  color: var(--color-warn);
 }
 .ibtn.circle {
   width: 32px;
@@ -538,7 +528,7 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
   border-radius: 50%;
   border: 0;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--on-accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;

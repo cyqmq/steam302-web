@@ -5,7 +5,7 @@ export const store = reactive({
   status: null,
   settings: null,
   version: null,
-  accent: localStorage.getItem('accent') || 'red'
+  theme: localStorage.getItem('theme') || 'auto'
 })
 
 export function toast(msg, kind = 'ok') {
@@ -19,8 +19,8 @@ export function toast(msg, kind = 'ok') {
   }, 2600)
 }
 
-export function setAccent(name) {
-  store.accent = name
-  localStorage.setItem('accent', name)
-  document.documentElement.dataset.accent = name === 'red' ? '' : name
+export function setTheme(name) {
+  store.theme = name
+  localStorage.setItem('theme', name)
+  document.documentElement.dataset.theme = name
 }

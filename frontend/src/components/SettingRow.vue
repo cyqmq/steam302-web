@@ -30,7 +30,7 @@ defineProps({
   transition: background 0.12s;
 }
 .setting-row:hover {
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--color-hover);
 }
 .row-left {
   display: flex;
@@ -47,7 +47,7 @@ defineProps({
   color: var(--color-primary);
 }
 .rt {
-  color: #fff;
+  color: var(--color-strong);
   font-weight: 600;
   font-size: 13.5px;
   line-height: 1.35;

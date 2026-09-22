@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import 'uno.css'
 import './styles.css'
 import App from './App.vue'
-import { store, setAccent } from './lib/state.js'
+import { store, setTheme } from './lib/state.js'
 
-setAccent(store.accent)
+setTheme(store.theme)
 createApp(App).mount('#app')
