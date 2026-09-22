@@ -389,10 +389,35 @@ const freqVal = computed(() => {
 })
 
 const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', '_blank')
+
+// 设置子区块导航（复刻原版 常规/网络/CDN/系统 布局）
+const subdivisions = [
+  { key: 'general', label: '常规', icon: Settings },
+  { key: 'network', label: '网络', icon: Network },
+  { key: 'cdn', label: 'CDN', icon: Cloud },
+  { key: 'system', label: '系统', icon: Shield }
+]
+const sub = ref('general')
 </script>
 
 <template>
+  <div class="sett-wrap">
+    <aside class="snav">
+      <button
+        v-for="d in subdivisions"
+        :key="d.key"
+        class="snav-i"
+        :class="{ on: sub === d.key }"
+        @click="sub = d.key"
+      >
+        <component :is="d.icon" :size="15" />
+        {{ d.label }}
+      </button>
+    </aside>
+
   <div class="sett">
+    <!-- ① 常规 -->
+    <template v-if="sub === 'general'">
     <!-- ① 启动与窗口 -->
     <SettingCard title="启动与窗口" :icon="Play">
       <template #actions><span class="noop"></span></template>
@@ -424,8 +449,10 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         <ToggleSwitch :model-value="!!s.minimize_tray" @change="(v) => save({ minimize_tray: v })" />
       </SettingRow>
     </SettingCard>
+    </template>
 
     <!-- ② 本地监听设置 -->
+    <template v-if="sub === 'network'">
     <SettingCard title="本地监听设置" :icon="Server">
       <SettingRow
         title="监听地址"
@@ -447,13 +474,6 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         :icon="Signal"
       >
         <input class="inp" type="number" min="1" max="65535" v-model="httpPort" @keyup.enter="savePorts" @blur="savePorts" />
-      </SettingRow>
-      <SettingRow
-        title="重载代理服务"
-        subtitle="重新生成配置并使端口 / 规则 / 上游域名变更生效"
-        :icon="RefreshCw"
-      >
-        <button class="btn sec" @click="reloadServices"><RefreshCw :size="15" /> 重载服务</button>
       </SettingRow>
     </SettingCard>
 
@@ -546,7 +566,33 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
       </SettingRow>
     </SettingCard>
 
+    <SettingCard title="代理 & PAC" :icon="Globe">
+      <SettingRow
+        title="下载 PAC 文件"
+        subtitle="浏览器/系统代理可导入 proxy.pac 按规则自动分流"
+        :icon="Download"
+      >
+        <a class="btn ghostb" href="/proxy.pac" download="proxy.pac"><Download :size="15" /> 下载 PAC</a>
+      </SettingRow>
+      <SettingRow
+        title="复制代理设置参数"
+        subtitle="把代理端口/Profile 信息复制到剪贴板供 PC 客户端使用"
+        :icon="Copy"
+      >
+        <button class="btn ghostb" @click="loadProfile">复制代理设置</button>
+      </SettingRow>
+      <SettingRow
+        title="重载代理服务"
+        subtitle="重新生成配置并使端口 / 规则 / 上游域名变更生效"
+        :icon="RefreshCw"
+      >
+        <button class="btn sec" @click="reloadServices"><RefreshCw :size="15" /> 重载服务</button>
+      </SettingRow>
+    </SettingCard>
+    </template>
+
     <!-- ⑥ CDN 优选 & 上游域名 -->
+    <template v-if="sub === 'cdn'">
     <SettingCard title="CDN 优选 & 上游域名" :icon="Cloud">
       <template #actions>
         <button class="ibtn circle" title="重新生成代理配置" @click="regen"><RefreshCw :size="15" /></button>
@@ -602,8 +648,10 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         <CustomSelect :model-value="'edge'" :options="upsOptions" disabled />
       </SettingRow>
     </SettingCard>
+    </template>
 
     <!-- ⑦ 安全证书 -->
+    <template v-if="sub === 'system'">
     <SettingCard title="安全证书" :icon="Lock">
       <SettingRow
         title="证书有效期"
@@ -625,8 +673,10 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         <button class="btn sec" @click="certReset('leaf')">重置网站证书</button>
       </SettingRow>
     </SettingCard>
+    </template>
 
     <!-- ⑧ 支持 & 教程 -->
+    <template v-if="sub === 'general'">
     <SettingCard title="支持 & 教程" :icon="Info">
       <SettingRow
         title="支持开发者"
@@ -651,23 +701,11 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         <button class="btn" @click="openTutorial"><BookOpen :size="15" /> 使用教程</button>
       </SettingRow>
     </SettingCard>
+    </template>
 
-    <!-- ⑨ 高级选项 -->
+<!-- ⑨ 高级选项 -->
+    <template v-if="sub === 'system'">
     <SettingCard title="高级选项" :icon="Settings">
-      <SettingRow
-        title="复制代理设置参数"
-        subtitle="把代理端口/Profile 信息复制到剪贴板供 PC 客户端使用"
-        :icon="Copy"
-      >
-        <button class="btn ghostb" @click="loadProfile">复制代理设置</button>
-      </SettingRow>
-      <SettingRow
-        title="下载 PAC 文件"
-        subtitle="浏览器/系统代理可导入 proxy.pac 按规则自动分流"
-        :icon="Download"
-      >
-        <a class="btn ghostb" href="/proxy.pac" download="proxy.pac"><Download :size="15" /> 下载 PAC</a>
-      </SettingRow>
       <SettingRow
         title="日志自动清除"
         subtitle="后端日志达到上限后自动轮转"
@@ -691,13 +729,56 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
         <button class="btn warn" @click="factoryReset"><Trash2 :size="15" class="wi" /> 重置所有设置</button>
       </SettingRow>
     </SettingCard>
+    </template>
+  </div>
   </div>
 </template>
 
 <style scoped>
+.sett-wrap {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.snav {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+.snav-i {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s;
+}
+.snav-i:hover {
+  color: var(--color-strong);
+  background: var(--color-hover);
+}
+.snav-i.on {
+  color: var(--color-primary-hi);
+  background: var(--color-primary-dim);
+  font-weight: 600;
+}
 .sett {
   max-width: 900px;
-  margin: 0 auto;
 }
 .radios {
   display: flex;
