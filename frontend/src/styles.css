@@ -1,0 +1,74 @@
+:root {
+  --color-bg: #1e1b1c;
+  --color-bg-soft: #262224;
+  --color-card: #2b2425;
+  --color-card-head: #221e1f;
+  --color-border: #3d3435;
+  --color-border-soft: rgba(61, 52, 53, 0.55);
+  --color-primary: #e53935;
+  --color-primary-hi: #ef5350;
+  --color-primary-dim: rgba(229, 57, 53, 0.16);
+  --color-primary-deep: #4a1f24;
+  --color-fg: #e9e9ec;
+  --color-muted: #a0a0a0;
+  --color-faint: #6f6f7d;
+  --color-on: #66bb6a;
+  --color-off: #ef5350;
+  --color-term-bg: #171516;
+  --color-term-border: #2a2526;
+}
+
+:root[data-accent='blue'] {
+  --color-primary: #3578e5;
+  --color-primary-hi: #4a8af4;
+  --color-primary-dim: rgba(53, 120, 229, 0.16);
+  --color-primary-deep: #16304a;
+}
+
+:root[data-accent='purple'] {
+  --color-primary: #8f55d6;
+  --color-primary-hi: #a774ec;
+  --color-primary-dim: rgba(143, 85, 214, 0.16);
+  --color-primary-deep: #2c1d44;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3d3435;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #55494b;
+}
+
+input,
+select,
+button,
+textarea {
+  font: inherit;
+}

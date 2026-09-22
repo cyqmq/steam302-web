@@ -21,3 +21,6 @@ config/blacklist.json
 # Python
 __pycache__/
 *.pyc
+
+# 前端构建依赖
+frontend/node_modules/

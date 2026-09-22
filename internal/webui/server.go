@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,14 +20,15 @@ import (
 	"sync"
 	"time"
 
-	_ "embed"
+	"embed"
 
+	"steam302-web/internal/hosts"
 	"steam302-web/internal/prefer"
 	"steam302-web/internal/rules"
 )
 
-//go:embed static/index.html
-var indexHTML []byte
+//go:embed all:static
+var uiFS embed.FS
 
 type Server struct {
 	Root  string
@@ -61,6 +63,11 @@ type settingsView struct {
 	ExitSync      bool   `json:"exit_sync"`
 	MinimizeTray  bool   `json:"minimize_tray"`
 	DevSupport    bool   `json:"dev_support"`
+	DevFreq       string `json:"dev_freq"`
+	AutoWinProxy  bool   `json:"auto_win_proxy"`
+	DNSCDNPrefer  bool   `json:"dns_cdn_prefer"`
+	DNSUserRules  bool   `json:"dns_user_rules"`
+	DNSLog        bool   `json:"dns_log"`
 }
 
 // proxyProfile 是"复制代理参数"面板的数据：给客户端一键配置 hosts /
@@ -360,16 +367,21 @@ func (s *Server) settings() settingsView {
 	}
 	_, statErr := os.Stat(filepath.Join(s.Root, "config", "certs", "ca.pem"))
 	sv := settingsView{
-		BindIP:      env.Listen.BindIP,
-		LogMaxBytes: env.Fwd.LogMaxBytes,
-		BackupKeep:  env.Hosts.BackupKeep,
-		CAYears:     env.Cert.CAYears,
-		LeafDays:    env.Cert.LeafDays,
-		AutoStart:   s.autostartEnabled(),
-		CertExists:  statErr == nil,
-		Prefer:      env.Prefer,
-		ExitSync:    env.UI.ExitSync,
-		DevSupport:  env.UI.DevSupport,
+		BindIP:       env.Listen.BindIP,
+		LogMaxBytes:  env.Fwd.LogMaxBytes,
+		BackupKeep:   env.Hosts.BackupKeep,
+		CAYears:      env.Cert.CAYears,
+		LeafDays:     env.Cert.LeafDays,
+		AutoStart:    s.autostartEnabled(),
+		CertExists:   statErr == nil,
+		Prefer:       env.Prefer,
+		ExitSync:     env.UI.ExitSync,
+		DevSupport:   env.UI.DevSupport,
+		DevFreq:      env.UI.DevFreq,
+		AutoWinProxy: env.UI.AutoWinProxy,
+		DNSCDNPrefer: env.UI.DNSCDNPrefer,
+		DNSUserRules: env.UI.DNSUserRules,
+		DNSLog:       env.UI.DNSLog,
 	}
 	// 首次（未写偏好）时套用默认：自启服务/自动更新/最小化托盘默认开启；
 	// 开机自启模式反映当前 systemd 状态。
@@ -386,6 +398,9 @@ func (s *Server) settings() settingsView {
 		sv.StartService = env.UI.StartService
 		sv.AutoUpdate = env.UI.AutoUpdate
 		sv.MinimizeTray = env.UI.MinimizeTray
+	}
+	if sv.DevFreq == "" {
+		sv.DevFreq = "weekly"
 	}
 	return sv
 }
@@ -560,19 +575,24 @@ func (s *Server) stopServices() map[string]any {
 	var stopped []string
 	for _, u := range []string{"steam302-web-caddy.service", "steam302-web-fwd.service", "steam302-web-dnsd.service"} {
 		if st := unitActive(u); st == "active" || st == "activating" {
-			mustRun("systemctl", "stop", u)
+			runOK("systemctl", "stop", u)
 			stopped = append(stopped, u)
 		}
 	}
+	// 兜底：非 systemd 启的手工进程按特征结束
 	for _, pat := range []string{
 		"caddy run --config " + filepath.Join(s.Root, "Caddyfile"),
 		"s302fwd run",
 	} {
-		if exec.Command("pkill", "-f", pat).Run() == nil {
+		if runOK("pkill", "-f", pat) {
 			stopped = append(stopped, "进程:"+pat)
 		}
 	}
 	return map[string]any{"stopped": stopped, "ts": time.Now().Format("2006/01/02 15:04:05")}
+}
+
+func runOK(name string, args ...string) bool {
+	return exec.Command(name, args...).Run() == nil
 }
 
 type logsView struct {
@@ -693,16 +713,35 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
+	// Vite 构建产物：静态资源直出，其余路径回落 index.html（SPA）。
+	sub, err := fs.Sub(uiFS, "static")
+	if err != nil {
+		panic(err)
+	}
+	indexBytes, err := fs.ReadFile(sub, "index.html")
+	if err != nil {
+		panic(fmt.Errorf("webui: 读取嵌入式 index.html: %w", err))
+	}
+	fileHandler := http.FileServer(http.FS(sub))
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
+		p := strings.TrimPrefix(r.URL.Path, "/")
+		if f, err := sub.Open(p); err == nil {
+			f.Close()
+			fileHandler.ServeHTTP(w, r)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(indexHTML)
+		_, _ = w.Write(indexBytes)
 	})
 
 	mux.HandleFunc("GET /api/rules", func(w http.ResponseWriter, r *http.Request) {
@@ -939,6 +978,11 @@ func (s *Server) Handler() http.Handler {
 			ExitSync      *bool   `json:"exit_sync"`
 			MinimizeTray  *bool   `json:"minimize_tray"`
 			DevSupport    *bool   `json:"dev_support"`
+			DevFreq       *string `json:"dev_freq"`
+			AutoWinProxy  *bool   `json:"auto_win_proxy"`
+			DNSCDNPrefer  *bool   `json:"dns_cdn_prefer"`
+			DNSUserRules  *bool   `json:"dns_user_rules"`
+			DNSLog        *bool   `json:"dns_log"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeJSON(w, 400, map[string]string{"error": "body 无效: " + err.Error()})
@@ -1027,6 +1071,21 @@ func (s *Server) Handler() http.Handler {
 		}
 		if body.DevSupport != nil {
 			env.UI.DevSupport = *body.DevSupport
+		}
+		if body.DevFreq != nil {
+			env.UI.DevFreq = *body.DevFreq
+		}
+		if body.AutoWinProxy != nil {
+			env.UI.AutoWinProxy = *body.AutoWinProxy
+		}
+		if body.DNSCDNPrefer != nil {
+			env.UI.DNSCDNPrefer = *body.DNSCDNPrefer
+		}
+		if body.DNSUserRules != nil {
+			env.UI.DNSUserRules = *body.DNSUserRules
+		}
+		if body.DNSLog != nil {
+			env.UI.DNSLog = *body.DNSLog
 		}
 		if err := s.saveEnv(env); err != nil {
 			writeJSON(w, 500, map[string]string{"error": err.Error()})
@@ -1156,6 +1215,63 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, 200, s.stopServices())
 	})
 
+	// DNS 重定向模式开关：直接启停 steam302-web-dnsd.service。
+	mux.HandleFunc("POST /api/services/dns", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Enabled == nil {
+			writeJSON(w, 400, map[string]string{"error": "body 需为 {\"enabled\": true|false}"})
+			return
+		}
+		verb := "start"
+		if !*body.Enabled {
+			verb = "stop"
+		}
+		mustRun("systemctl", verb, "steam302-web-dnsd.service")
+		writeJSON(w, 200, map[string]any{"ok": true, "enabled": *body.Enabled, "state": unitActive("steam302-web-dnsd.service")})
+	})
+
+	// hosts 劫持开关：on=重生成后经 apply 写入 /etc/hosts；off=按 marker 撤回劫持段。
+	mux.HandleFunc("POST /api/hosts", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Enabled == nil {
+			writeJSON(w, 400, map[string]string{"error": "body 需为 {\"enabled\": true|false}"})
+			return
+		}
+		if *body.Enabled {
+			out, err := s.runApply()
+			writeJSON(w, 200, map[string]any{
+				"ok":      err == nil,
+				"enabled": true,
+				"out":     string(out),
+				"error":   errString(err),
+			})
+			return
+		}
+		env, err := s.loadEnv()
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		path := env.Hosts.File
+		if path == "" {
+			path = "/etc/hosts"
+		}
+		marker := env.Hosts.Marker
+		if marker == "" {
+			marker = "#S302X"
+		}
+		_, rerr := hosts.MustRemove(path, marker, false)
+		if rerr != nil {
+			writeJSON(w, 500, map[string]string{"error": rerr.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "enabled": false})
+	})
+
 	// 版本/关于信息：含上游最新版检测与是否有更新。
 	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, r *http.Request) {
 		latest, page := checkLatest()
@@ -1187,13 +1303,39 @@ func tokenAuth(token string, h http.Handler) http.Handler {
 		return h
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if clientIsLoopback(r.RemoteAddr) || r.URL.Query().Get("token") == token || basicTokenOK(r, token) {
+		if clientIsLoopback(r.RemoteAddr) || r.URL.Query().Get("token") == token || basicTokenOK(r, token) || cookieTokenOK(r, token) {
 			h.ServeHTTP(w, r)
 			return
 		}
 		w.Header().Set("WWW-Authenticate", `Basic realm="steam302", charset="UTF-8"`)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 	})
+}
+
+// indexTokenCookie 把 URL 中的 ?token= 沉淀为 s302token Cookie，
+// 使 Vite 产物里 <link>/<script> 的静态资源请求不再需要手动带 token。
+func indexTokenCookie(token string, h http.Handler) http.Handler {
+	if token == "" {
+		return h
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !clientIsLoopback(r.RemoteAddr) && subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("token")), []byte(token)) == 1 {
+			http.SetCookie(w, &http.Cookie{
+				Name:     "s302token",
+				Value:    token,
+				Path:     "/",
+				MaxAge:   2592000,
+				HttpOnly: true,
+				SameSite: http.SameSiteStrictMode,
+			})
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+func cookieTokenOK(r *http.Request, token string) bool {
+	c, err := r.Cookie("s302token")
+	return err == nil && subtle.ConstantTimeCompare([]byte(c.Value), []byte(token)) == 1
 }
 
 func clientIsLoopback(remote string) bool {
@@ -1233,7 +1375,7 @@ func (s *Server) Listen(addr string) error {
 	}
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           tokenAuth(s.Token, s.Handler()),
+		Handler:           tokenAuth(s.Token, indexTokenCookie(s.Token, s.Handler())),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	if s.Token == "" {

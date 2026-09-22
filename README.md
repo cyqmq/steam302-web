@@ -49,7 +49,7 @@
 | 用户自定义规则（列表查看） | ✅ WebUI「服务」页（侧栏 服务）：分组折叠列表（Steam/游戏/图片/聊天/媒体/其它）+ 全选/分组开关 + 右侧「服务控制」（停止/⟳重载）+「网络监听/设置信息」运行时面板（监听地址/端口/hosts/DNS重定向/自动代理/系统代理/CDN优选/自启/自启服务/自动更新/上游域名/支持开发）；「⟳ 重载」= `sudo -n bin/apply` 重生成 → 写 `/etc/hosts` → 重启服务 |
 | 用户自定义规则编辑器（铅笔图标）/ 域名黑名单 | ✅ WebUI「服务」页每条规则「✎ 编辑」直接改 JSON（校验后重生成）；「设置→高级→域名黑名单」面板（`config/blacklist.json`，支持 `*.example.com`，命中域名不进 hosts 劫持走直连）；「高级」另含 代理参数 / 重新生成 / 证书重置 / 恢复出厂 |
 | 复制代理设置参数（剪贴板/PAC/环境变量） | ✅ WebUI「设置→高级→复制代理参数」面板：Hosts 劫持片段 / curl 验证命令 / PAC / 环境变量四种格式一键复制；PAC 为**白名单式**（仅被劫持域名走 HTTPS 代理、其余 DIRECT），黑名单域名天然被排除 |
-| 界面复刻（深红 SukiUI 风） | ✅ 固定深色+深红强调色，侧栏导航（服务/设置/日志/发现新版本）+ 各页卡片布局，复刻自原版 Steamcommunity 302 界面 |
+| 界面复刻（深红 SukiUI 风） | ✅ Vue3(Composition API)+Vite+UnoCSS 编译型 SPA，按需 Lucide 图标，零第三方 UI 库；SettingCard/SettingRow/ToggleSwitch/CustomRadio/CustomCheckbox/CustomSelect 组件抽象，`max-w` 容器 + 极细暗色滚动条 + CSS 变量主题（红/蓝/紫可切换）；构建产物由 Go `go:embed` 托管，`?token=` 一次性鉴权沉降为 `s302token` Cookie 供静态资源复用 |
 | 查看使用教程 | 仓库内文档：`README` / `docs/RULES.md` / `docs/PORTING.md` |
 | Origin 游戏下载（HTTPS→HTTP） | `origin_dl` 规则（默认关）：origin-a.akamaihd.net 反代到 HTTP 流媒体边缘 |
 | Uplay 客户端更新防劫持 | `uplay_update` 规则（默认关）：static3.cdn.ubi.com 转回官方源 |
@@ -113,9 +113,20 @@ config/
   rules.schema.json  # 规则 JSON Schema
 cmd/                 # genconfig / genhosts / genpki / s302fwd / webui / apply / reset / prefer / fetchghip / fetchcdnips / dnsd
 internal/            # rules / hosts / pki / fwd / webui
+frontend/            # Vue3+Vite 前端源码（构建产物输出到 internal/webui/static，已提交）
 deploy/              # install.sh · uninstall.sh · switch-back.sh · apply-hosts.sh
 web/files/           # file_server 型服务资源（youtube_iframe 占位，P0）
 docs/                # README / RULES.md / PORTING.md
+```
+
+## 前端（WebUI）构建
+
+```bash
+# dist 产物已提交至 internal/webui/static（go:embed 直接读取），
+# 修改 frontend/ 源码后需重新构建再 go build webui：
+npm --prefix frontend install --registry=https://registry.npmmirror.com
+npm --prefix frontend run build   # 输出到 ../internal/webui/static
+go build -o bin/webui ./cmd/webui
 ```
 
 ## 快速开始

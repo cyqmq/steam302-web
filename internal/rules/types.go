@@ -23,6 +23,12 @@ type UI struct {
 	ExitSync      bool   `json:"exit_sync,omitempty"`
 	MinimizeTray  bool   `json:"minimize_tray,omitempty"`
 	DevSupport    bool   `json:"dev_support,omitempty"`
+	DevFreq       string `json:"dev_freq,omitempty"` // weekly|daily|none
+	// 以下为 hosts/DNS/代理方案的偏好记录（对应能力由 systemd/运维层提供）：
+	AutoWinProxy bool `json:"auto_win_proxy,omitempty"`
+	DNSCDNPrefer bool `json:"dns_cdn_prefer,omitempty"`
+	DNSUserRules bool `json:"dns_user_rules,omitempty"`
+	DNSLog       bool `json:"dns_log,omitempty"`
 }
 
 // PreferConfig 是 CDN 优选(测速)的全局默认值，规则内的 site.prefer 可覆盖。

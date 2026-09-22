@@ -2,6 +2,7 @@ package webui
 
 import (
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -69,6 +70,42 @@ func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.R
 func serve(t *testing.T, root string) http.Handler {
 	t.Helper()
 	return (&Server{Root: root}).Handler()
+}
+
+// TestStaticIndexAndAssets 锁定 Vite 构建产物托管：/ 返回 SPA 入口，/assets 静态直出。
+func TestStaticIndexAndAssets(t *testing.T) {
+	srv := serve(t, newTestRoot(t))
+
+	rr := do(t, srv, "GET", "/", nil)
+	if rr.Code != 200 {
+		t.Fatalf("GET / => %d, want 200", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), `<div id="app"></div>`) {
+		t.Fatalf("index.html 缺少 #app 挂载点")
+	}
+
+	// 任意已嵌入的 assets 资源应可直出
+	entries, err := fs.ReadDir(uiFS, "static/assets")
+	if err != nil {
+		t.Fatalf("读取嵌入 assets 失败: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Skip("无静态资源")
+	}
+	name := entries[0].Name()
+	rr = do(t, srv, "GET", "/assets/"+name, nil)
+	if rr.Code != 200 {
+		t.Fatalf("GET /assets/%s => %d, want 200", name, rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); ct == "" {
+		t.Fatalf("静态资源缺少 Content-Type")
+	}
+
+	// 未知路径回落 index.html（SPA 路由）
+	rr = do(t, srv, "GET", "/settings", nil)
+	if rr.Code != 200 {
+		t.Fatalf("GET /settings => %d, want 200（SPA 回落）", rr.Code)
+	}
 }
 
 func TestRuleEditorEndpoints(t *testing.T) {

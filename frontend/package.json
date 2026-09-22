@@ -1,0 +1,26 @@
+{
+  "name": "steam302-web-frontend",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-vue-next": "^0.469.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@unocss/preset-wind": "^0.64.1",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "unocss": "^0.64.1",
+    "vite": "^5.4.21"
+  },
+  "allowScripts": {
+    "esbuild@0.23.1": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true
+  }
+}
