@@ -25,6 +25,19 @@ type connInfo struct {
 	End    time.Time `json:"end,omitempty"`
 }
 
+// connEvent 描述连接日志流里的一行结构化事件（连接建立/结束/失败）。
+type connEvent struct {
+	ID     uint64    `json:"id"`
+	Kind   string    `json:"kind"` // accept | close | denied
+	Level  string    `json:"level"`
+	At     time.Time `json:"at"`
+	Host   string    `json:"host"`
+	Remote string    `json:"remote"`
+	Up     int64     `json:"up"`
+	Down   int64     `json:"down"`
+	DurMs  int64     `json:"dur_ms"`
+}
+
 // tracker 维护活跃连接表与最近历史环形缓存。
 type tracker struct {
 	mu        sync.Mutex
@@ -32,6 +45,7 @@ type tracker struct {
 	live      map[uint64]net.Conn
 	info      map[uint64]*connInfo
 	recent    []connInfo
+	events    []connEvent
 	maxKeep   int
 	started   time.Time
 	totalUp   int64
@@ -50,6 +64,31 @@ func newTracker(maxKeep int) *tracker {
 	}
 }
 
+// pushEvent 向连接事件环形缓存追加一条事件。
+func (t *tracker) pushEvent(ev connEvent) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.events = append(t.events, ev)
+	if len(t.events) > t.maxKeep {
+		t.events = t.events[len(t.events)-t.maxKeep:]
+	}
+}
+
+// setEventHost 在嗅探识别出目标主机后，把对应连接的 accept 事件补上主机名。
+func (t *tracker) setEventHost(id uint64, name string) {
+	if name == "" {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for i := len(t.events) - 1; i >= 0; i-- {
+		if t.events[i].ID == id && t.events[i].Kind == "accept" {
+			t.events[i].Host = name
+			return
+		}
+	}
+}
+
 func (t *tracker) add(c net.Conn) (uint64, *connInfo) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -58,6 +97,14 @@ func (t *tracker) add(c net.Conn) (uint64, *connInfo) {
 	inf := &connInfo{ID: id, Remote: c.RemoteAddr().String(), Start: time.Now(), Last: time.Now()}
 	t.live[id] = c
 	t.info[id] = inf
+	host := ""
+	t.events = append(t.events, connEvent{
+		ID: id, Kind: "accept", Level: "INFO", At: inf.Start,
+		Host: host, Remote: inf.Remote,
+	})
+	if len(t.events) > t.maxKeep {
+		t.events = t.events[len(t.events)-t.maxKeep:]
+	}
 	return id, inf
 }
 
@@ -90,6 +137,14 @@ func (t *tracker) remove(id uint64, c net.Conn) {
 		if len(t.recent) > t.maxKeep {
 			t.recent = t.recent[len(t.recent)-t.maxKeep:]
 		}
+		t.events = append(t.events, connEvent{
+			ID: id, Kind: "close", Level: "INFO", At: inf.End,
+			Host: inf.Host, Remote: inf.Remote,
+			Up: inf.Up, Down: inf.Down, DurMs: inf.End.Sub(inf.Start).Milliseconds(),
+		})
+		if len(t.events) > t.maxKeep {
+			t.events = t.events[len(t.events)-t.maxKeep:]
+		}
 	}
 	delete(t.live, id)
 	delete(t.info, id)
@@ -120,6 +175,7 @@ func (t *tracker) clearRecent() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.recent = t.recent[:0]
+	t.events = t.events[:0]
 }
 
 func (t *tracker) snapshot() map[string]any {
@@ -139,6 +195,14 @@ func (t *tracker) snapshot() map[string]any {
 		"total_up":   t.totalUp,
 		"total_down": t.totalDown,
 	}
+}
+
+func (t *tracker) eventsView() []connEvent {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make([]connEvent, len(t.events))
+	copy(out, t.events)
+	return out
 }
 
 // countingConn 转发两端套上计数。
@@ -181,13 +245,18 @@ func (c *countingConn) finish() {
 func (t *tracker) proxy(c net.Conn, dst string) {
 	br := bufio.NewReader(c)
 	id, inf := t.add(c)
+	sniffDone := make(chan struct{})
 	go func() {
+		defer close(sniffDone)
 		if h := sniffHost(br, c); h != "" {
 			t.setHost(h, inf)
+			t.setEventHost(id, h)
 		}
 	}()
 	up, err := net.DialTimeout("tcp", dst, 10*time.Second)
 	if err != nil {
+		<-sniffDone
+		t.pushEvent(connEvent{ID: id, Kind: "denied", Level: "ERROR", At: time.Now(), Host: inf.Host, Remote: inf.Remote, Up: 0, Down: 0})
 		t.remove(id, c)
 		_ = c.Close()
 		return
@@ -335,6 +404,9 @@ func serveAdmin(addr string, tr *tracker) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /conns", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, tr.snapshot())
+	})
+	mux.HandleFunc("GET /conns/events", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{"events": tr.eventsView()})
 	})
 	mux.HandleFunc("POST /conns/close", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {

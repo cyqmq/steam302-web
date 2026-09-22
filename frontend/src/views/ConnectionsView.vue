@@ -1,80 +1,158 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Search, X, Power, Trash2, RefreshCw, Unplug } from 'lucide-vue-next'
-import CustomRadio from '../components/CustomRadio.vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Search, X, Pause, Play, Trash2, Wifi, WifiOff, Loader2, Unplug } from 'lucide-vue-next'
+import CustomSelect from '../components/CustomSelect.vue'
+import { store, toast } from '../lib/state.js'
 
-const tab = ref('active')
+const levelOpts = [
+  { value: 'all', label: '全部等级' },
+  { value: 'DEBUG', label: '调试' },
+  { value: 'INFO', label: '信息' },
+  { value: 'WARN', label: '警告' },
+  { value: 'ERROR', label: '错误' }
+]
+
+const level = ref('all')
 const q = ref('')
-const data = ref({ active: [], recent: [], active_n: 0, total_up: 0, total_down: 0, running: true })
-const state = ref('loading') // loading | ok | off | err
-const errMsg = ref('')
+const paused = ref(false)
+const events = ref([])
+const status = ref('connecting') // connecting | live | offline
+const statusMsg = ref('')
+const viewport = ref(null)
+const stickBottom = ref(true)
 let poll = null
+let maxLines = 2000
 
 const api = (p, opt) => fetch(p, { ...opt, headers: { 'Content-Type': 'application/json' } }).then((r) => r.json())
 
-const load = async () => {
+const load = async (initial) => {
   try {
-    const d = await api('/api/connections')
-    if (!d || typeof d !== 'object') return
-    if (d.ok === false) {
-      state.value = 'off'
-      errMsg.value = d.error || ''
+    const d = await api('/api/connections/events')
+    const live = !!(d && d.running)
+    if (!live) {
+      status.value = 'offline'
+      statusMsg.value = (d && d.error) || ''
       return
     }
-    data.value = d
-    state.value = 'ok'
+    if (d.ok === false) {
+      status.value = 'offline'
+      statusMsg.value = d.error || ''
+      return
+    }
+    status.value = 'live'
+    const seen = new Set()
+    for (const ev of (events.value || [])) seen.add(ev.id + '@' + ev.at)
+    const fresh = []
+    for (const ev of (d.events || [])) {
+      const k = ev.id + '@' + ev.at
+      if (!seen.has(k)) {
+        seen.add(k)
+        fresh.push(ev)
+      }
+    }
+    if (!paused.value && fresh.length) {
+      events.value = events.value.concat(fresh)
+      if (events.value.length > maxLines) events.value = events.value.slice(-maxLines)
+      if (stickBottom.value) scrollBottom()
+    }
   } catch (e) {
-    state.value = 'err'
-    errMsg.value = String(e)
+    if (initial) {
+      status.value = 'offline'
+      statusMsg.value = String(e)
+    }
   }
 }
 
-const refresh = () => load()
+async function scrollBottom() {
+  await nextTick()
+  if (viewport.value) viewport.value.scrollTop = viewport.value.scrollHeight
+}
 
-const rows = computed(() => {
-  const src = tab.value === 'active' ? data.value.active : data.value.recent
+function onScroll() {
+  const v = viewport.value
+  if (!v) return
+  stickBottom.value = v.scrollHeight - v.scrollTop - v.clientHeight < 24
+}
+
+function togglePause() {
+  paused.value = !paused.value
+  if (!paused.value) scrollBottom()
+}
+
+async function clearAll() {
+  events.value = []
+  toast('本地日志视图已清空；后续事件会继续显示。')
+  await api('/api/connections/clear', { method: 'POST', body: '{}' }).catch(() => {})
+}
+
+async function disconnectAll() {
+  try {
+    await api('/api/connections/close-all', { method: 'POST', body: '{}' })
+    toast('已请求断开所有活动会话')
+  } catch (e) {
+    toast('操作失败: ' + e.message, 'err')
+  }
+}
+
+const filtered = computed(() => {
   const kw = q.value.trim().toLowerCase()
-  if (!kw) return src
-  return (src || []).filter((c) => {
-    const h = String(c.host || '')
-    const r = String(c.rule || '')
-    const s = String(c.remote || '')
-    return h.toLowerCase().includes(kw) || r.toLowerCase().includes(kw) || s.toLowerCase().includes(kw)
+  return events.value.filter((ev) => {
+    if (level.value !== 'all' && ev.level !== level.value) return false
+    if (!kw) return true
+    return [ev.host, ev.remote, ev.kind, ev.rule, ev.level].some((f) => String(f || '').toLowerCase().includes(kw))
   })
 })
 
 const fmtBytes = (n) => {
   n = Number(n) || 0
   if (n < 1024) return n + ' B'
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB'
-  if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(2) + ' MB'
-  return (n / 1024 / 1024 / 1024).toFixed(2) + ' GB'
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB'
+  if (n < 1073741824) return (n / 1048576).toFixed(2) + ' MB'
+  return (n / 1073741824).toFixed(2) + ' GB'
 }
 
-const dur = (start, end) => {
-  const t = Date.parse(end) - Date.parse(start)
-  if (!isFinite(t) || t < 0) return '–'
-  const s = Math.floor(t / 1000)
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
-  if (h) return h + '时' + m + '分'
-  return m ? m + '分' + sec + '秒' : sec + '秒'
+const fmtTime = (iso) => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const ss = String(d.getSeconds()).padStart(2, '0')
+  const ms = String(d.getMilliseconds()).padStart(3, '0')
+  return `${hh}:${mm}:${ss}.${ms}`
 }
 
-const disconnect = async (id) => {
-  await api('/api/connections/close', { method: 'POST', body: JSON.stringify({ id }) }).then(load)
+const fmtDur = (ms) => {
+  ms = Number(ms) || 0
+  const s = Math.floor(ms / 1000)
+  if (s < 1) return ms + ' ms'
+  if (s < 60) return s + ' 秒'
+  const m = Math.floor(s / 60)
+  if (m < 60) return m + ' 分 ' + (s % 60) + ' 秒'
+  return Math.floor(m / 60) + ' 时 ' + (m % 60) + ' 分'
 }
-const disconnectAll = async () => {
-  await api('/api/connections/close-all', { method: 'POST', body: '{}' })
-  load()
+
+const msgOf = (ev) => {
+  if (ev.kind === 'close') {
+    const host = ev.host ? `断开 ${ev.host}` : '连接已断开'
+    const rule = ev.rule ? ` · 规则: ${ev.rule}` : ''
+    const dur = ev.dur_ms >= 0 ? ` · 持续 ${fmtDur(ev.dur_ms)}` : ''
+    const bytes = ` · 上行 ${fmtBytes(ev.up)} · 下行 ${fmtBytes(ev.down)}`
+    return host + rule + dur + bytes
+  }
+  if (ev.kind === 'denied') return `连接失败：无法连接上游（${ev.host || ev.remote}）`
+  const rule = ev.rule ? ` · 规则: ${ev.rule}` : ''
+  return (ev.host ? `建立连接 ${ev.host}` : '建立连接（目标未识别）') + rule
 }
-const clearRecent = async () => {
-  await api('/api/connections/clear', { method: 'POST', body: '{}' })
-  load()
-}
+
+const levelCN = (lv) => String(lv || 'INFO').toLowerCase()
+
+const statusLabel = computed(() =>
+  ({ connecting: '连接中', live: '实时', offline: '离线' }[status.value] || '未知')
+)
 
 onMounted(() => {
-  load()
-  poll = setInterval(load, 2000)
+  load(true)
+  poll = setInterval(() => load(false), 1500)
 })
 onBeforeUnmount(() => clearInterval(poll))
 </script>
@@ -82,87 +160,75 @@ onBeforeUnmount(() => clearInterval(poll))
 <template>
   <div class="conn-page">
     <div class="toolbar">
-      <div class="radios">
-        <CustomRadio v-model="tab" value="active" label="活动" @update:model-value="(v) => (tab = v)" />
-        <CustomRadio v-model="tab" value="recent" label="最近" @update:model-value="(v) => (tab = v)" />
-      </div>
+      <CustomSelect :model-value="level" :options="levelOpts" @change="(e) => (level = e.value)" />
       <div class="qbox">
         <Search :size="14" class="qi" />
-        <input class="qinp" type="text" placeholder="搜索会话（主机名、规则、源地址）" v-model="q" />
+        <input class="qinp" type="text" placeholder="查找（主机、来源、规则、等级）" v-model="q" />
         <button v-if="q" class="qclr" @click="q = ''"><X :size="13" /></button>
       </div>
       <div class="ops">
-        <button class="btn" :disabled="tab !== 'active'" @click="disconnectAll"><Unplug :size="13" /> 断开所有活动会话</button>
-        <button class="btn" @click="refresh"><RefreshCw :size="13" /> 刷新</button>
-        <button class="btn" :disabled="!(data.recent || []).length" @click="clearRecent"><Trash2 :size="13" /> 清空历史</button>
+        <button class="btn ghostb" @click="togglePause">
+          <Pause v-if="!paused" :size="13" /><Play v-else :size="13" /> {{ paused ? '继续' : '暂停' }}
+        </button>
+        <button class="btn ghostb" @click="clearAll"><Trash2 :size="13" /> 清空</button>
+        <button class="btn ghostb" title="断开所有活动转发会话" @click="disconnectAll"><Unplug :size="13" /> 断开全部活动</button>
       </div>
+      <span class="pill" :class="status">
+        <Wifi v-if="status === 'live'" :size="13" />
+        <Loader2 v-else-if="status === 'connecting'" :size="13" class="spin" />
+        <WifiOff v-else :size="13" />
+        {{ statusLabel }}
+      </span>
     </div>
 
-    <div v-if="state === 'ok'" class="table">
-      <div class="thead">
-        <span>主机名 / 规则</span><span>源地址</span><span class="num">客户端→上游</span>
-        <span class="num">上游→客户端</span><span class="num">持续</span><span class="op">操作</span>
+    <div class="table">
+      <div class="thead" aria-hidden="true">
+        <span>时间</span><span>等级</span><span>事件 / 消息</span>
       </div>
-      <div v-if="!rows.length" class="empty">
-        <div class="us-ico"><Power :size="20" /></div>
-        <p>{{ tab === 'active' ? '当前没有活动转发会话' : '暂无最近的转发会话' }}</p>
-        <p class="us-sub">访问被 S302 劫持的站点后会自动出现在这里（识别 TLS SNI / Host 头）。</p>
-      </div>
-      <div v-for="c in rows" :key="c.id" class="crow">
-        <span class="host">
-          <span class="hn">{{ c.host || '（未识别）' }}</span>
-          <span v-if="c.rule" class="rule-tag">{{ c.rule }}</span>
-          <span v-if="c.closed" class="closed-tag">已结束</span>
+
+      <div v-if="!filtered.length" class="log-empty">
+        <span class="le-txt">
+          <strong>{{ events.length ? '没有符合当前筛选条件的日志。' : status === 'live' ? '暂无日志。' : '尚未连接日志流。' }}</strong>
         </span>
-        <span class="lbl">{{ c.remote }}</span>
-        <span class="num">{{ fmtBytes(c.up) }}</span>
-        <span class="num">{{ fmtBytes(c.down) }}</span>
-        <span class="num">{{ dur(c.start, c.closed ? c.end : new Date().toISOString()) }}</span>
-        <span class="op">
-          <button v-if="!c.closed && tab === 'active'" class="mini" title="强制断开" @click="disconnect(c.id)">
-            <Unplug :size="13" />
-          </button>
-          <span v-else class="fh">–</span>
-        </span>
+        <span class="le-sub">调整筛选条件或等待新事件。{{ status === 'offline' && statusMsg ? '（' + statusMsg + '）' : '' }}</span>
+        <span v-if="status === 'offline'" class="le-sub">请先启动服务；连接监控依赖 s302fwd 回环管理接口。</span>
+      </div>
+
+      <div
+        v-else
+        ref="viewport"
+        class="log-viewport"
+        role="log"
+        aria-label="连接日志列表"
+        @scroll="onScroll"
+      >
+        <div v-for="(ev, i) in filtered" :key="ev.id + '@' + ev.at + '-' + i" class="line" :class="levelCN(ev.level)">
+          <span class="lt">{{ fmtTime(ev.at) }}</span>
+          <span class="lv"><i :class="levelCN(ev.level)">{{ ev.level || 'INFO' }}</i></span>
+          <span class="lm">{{ msgOf(ev) }}</span>
+          <span class="lr">{{ ev.remote }}</span>
+        </div>
       </div>
     </div>
 
-    <div v-else-if="state === 'off'" class="table">
-      <div class="unsupported">
-        <div class="us-ico warn"><Power :size="22" /></div>
-        <p>转发服务未运行，无法读取连接监控</p>
-        <p class="us-sub">{{ errMsg }}。请先启动服务（服务页 → 启动服务）。</p>
-      </div>
-    </div>
-
-    <div v-else class="table">
-      <div class="unsupported">
-        <div class="us-ico warn"><RefreshCw :size="22" /></div>
-        <p>{{ state === 'loading' ? '正在读取转发会话…' : '连接监控读取失败' }}</p>
-        <p class="us-sub">{{ errMsg }}</p>
-        <button class="btn" style="margin-top: 14px" @click="refresh">重试</button>
-      </div>
-    </div>
-
-    <p class="foot">当前活动 {{ data.active_n }} · 累计 客户端→上游 {{ fmtBytes(data.total_up) }} / 上游→客户端 {{ fmtBytes(data.total_down) }} · 每 2 秒自动刷新</p>
+    <p class="foot">
+      {{ paused ? '视图已暂停；后台仍继续接收有界日志流。' : status === 'offline' ? '后端未连接，正在显示最近日志。' : (store.status && store.status.fwd_active ? '实时连接日志流' : '') }}
+      · 共 {{ filtered.length }} 条{{ q || level !== 'all' ? '（筛选后）' : '' }}
+    </p>
   </div>
 </template>
 
 <style scoped>
 .conn-page {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
 }
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 10px;
   flex-wrap: wrap;
-}
-.radios {
-  display: flex;
-  gap: 6px;
 }
 .qbox {
   display: flex;
@@ -173,7 +239,7 @@ onBeforeUnmount(() => clearInterval(poll))
   border-radius: 6px;
   padding: 6px 10px;
   flex: 1;
-  min-width: 220px;
+  min-width: 200px;
 }
 .qi {
   color: var(--color-faint);
@@ -213,128 +279,131 @@ onBeforeUnmount(() => clearInterval(poll))
   gap: 6px;
   cursor: pointer;
 }
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.btn:hover {
+  color: var(--color-strong);
+  border-color: var(--color-primary);
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 5px 11px;
+  background: var(--color-card);
+}
+.pill.live {
+  color: var(--color-on);
+  border-color: var(--color-on);
+}
+.pill.connecting {
+  color: var(--color-warn, var(--color-muted));
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .table {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   overflow: hidden;
   background: var(--color-card);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 210px);
+  min-height: 280px;
 }
 .thead {
   display: grid;
-  grid-template-columns: 2.4fr 1.6fr 1.1fr 1.1fr 0.9fr 0.7fr;
-  gap: 8px;
-  padding: 10px 14px;
+  grid-template-columns: 130px 64px 1fr 200px;
+  gap: 10px;
+  padding: 9px 14px;
   background: var(--color-card-head);
   border-bottom: 1px solid var(--color-border);
   color: var(--color-muted);
   font-size: 11.5px;
   font-weight: 600;
+  flex: none;
 }
-.crow {
-  display: grid;
-  grid-template-columns: 2.4fr 1.6fr 1.1fr 1.1fr 0.9fr 0.7fr;
-  gap: 8px;
-  align-items: center;
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--color-border);
+.log-viewport {
+  flex: 1;
+  overflow: auto;
+  padding: 6px 0;
+  font-family: ui-monospace, Consolas, Menlo, monospace;
   font-size: 12.5px;
+}
+.line {
+  display: grid;
+  grid-template-columns: 130px 64px 1fr 200px;
+  gap: 10px;
+  padding: 4px 14px;
+  line-height: 1.6;
+  border-bottom: 1px solid var(--color-border-soft);
   color: var(--color-fg);
 }
-.crow:last-child {
-  border-bottom: 0;
-}
-.num {
-  text-align: right;
+.lt {
+  color: var(--color-faint);
   font-variant-numeric: tabular-nums;
-  color: var(--color-muted);
 }
-.op {
-  text-align: right;
+.lt::before {
+  content: '';
 }
-.host {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-.hn {
+.lr {
+  color: var(--color-faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: right;
 }
-.rule-tag {
-  flex: none;
-  border: 1px solid var(--color-border);
+.lv i {
+  font-style: normal;
+  padding: 1px 7px;
   border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 10.5px;
-  color: var(--color-primary);
-  background: var(--color-primary-dim);
-  white-space: nowrap;
-}
-.closed-tag {
-  flex: none;
-  border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 10.5px;
-  color: var(--color-faint);
+  font-size: 11px;
   border: 1px solid var(--color-border);
-}
-.mini {
-  border: 1px solid var(--color-border);
-  background: transparent;
   color: var(--color-muted);
-  border-radius: 5px;
-  padding: 4px 7px;
-  cursor: pointer;
-  display: inline-flex;
 }
-.mini:hover {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
+.lv i.info {
+  color: var(--color-on);
+  border-color: var(--color-on);
 }
-.fh {
-  color: var(--color-faint);
+.lv i.warn {
+  color: var(--color-warn);
+  border-color: var(--color-warn);
 }
-.empty {
-  padding: 40px 18px;
-  text-align: center;
-  color: var(--color-faint);
+.lv i.error {
+  color: var(--color-error);
+  border-color: var(--color-error);
 }
-.unsupported {
-  padding: 46px 18px;
-  text-align: center;
-  color: var(--color-faint);
+.lm {
+  min-width: 0;
+  word-break: break-all;
 }
-.us-ico {
-  width: 46px;
-  height: 46px;
-  margin: 0 auto 12px;
-  border-radius: 50%;
-  background: var(--color-primary-dim);
-  color: var(--color-primary);
+.log-empty {
+  flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  color: var(--color-faint);
+  text-align: center;
+  padding: 24px;
 }
-.us-ico.warn {
-  background: var(--color-warn-dim, var(--color-primary-dim));
-  color: var(--color-warn, var(--color-primary));
-}
-.unsupported p,
-.empty p {
-  margin: 4px 0;
-  font-size: 13px;
+.log-empty .le-txt {
+  font-size: 13.5px;
   color: var(--color-fg);
 }
-.unsupported .us-sub,
-.empty .us-sub {
+.log-empty .le-sub {
+  font-size: 12px;
   color: var(--color-faint);
-  font-size: 11.5px;
+  max-width: 520px;
 }
 .foot {
   margin: 10px 2px 0;

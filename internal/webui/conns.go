@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"steam302-web/internal/rules"
 )
 
 // connectionEntry 是经过规则匹配标注后的转发连接记录。
@@ -71,14 +73,10 @@ func (s *Server) fwdAdminFetch(method, path string, body io.Reader) ([]byte, err
 	return data, nil
 }
 
-// annotateConns 把 host 归属到具体规则（规则 hosts 支持精确与 "*.x" 后缀）。
-func (s *Server) annotateConns(raw map[string]any) (map[string]any, error) {
-	rs, _, err := s.loadAll()
-	if err != nil {
-		return raw, err
-	}
-	var hostRules = map[string]string{}
-	var hostRuleIDs = map[string]string{}
+// ruleIndex 构建 host → 规则 的精确表与通配表，供连接标注复用。
+func ruleIndex(rs []rules.Rule) (map[string]string, map[string]string, []struct{ host, name, id string }) {
+	hostRules := map[string]string{}
+	hostRuleIDs := map[string]string{}
 	var wildRules []struct{ host, name, id string }
 	for _, r := range rs {
 		for _, site := range r.Sites {
@@ -95,19 +93,34 @@ func (s *Server) annotateConns(raw map[string]any) (map[string]any, error) {
 			}
 		}
 	}
-	match := func(h string) (string, string) {
-		if h == "" {
-			return "", ""
-		}
-		if name, ok := hostRules[h]; ok {
-			return name, hostRuleIDs[h]
-		}
-		for _, w := range wildRules {
-			if strings.HasSuffix(h, "."+w.host) {
-				return w.name, w.id
-			}
-		}
+	return hostRules, hostRuleIDs, wildRules
+}
+
+// matchRuleHost 把 host 归属到规则名/id（精确优先，其次 "*.x" 后缀）。
+func matchRuleHost(h string, hostRules map[string]string, hostRuleIDs map[string]string, wildRules []struct{ host, name, id string }) (string, string) {
+	if h == "" {
 		return "", ""
+	}
+	if name, ok := hostRules[h]; ok {
+		return name, hostRuleIDs[h]
+	}
+	for _, w := range wildRules {
+		if strings.HasSuffix(h, "."+w.host) {
+			return w.name, w.id
+		}
+	}
+	return "", ""
+}
+
+// annotateConns 把 host 归属到具体规则（规则 hosts 支持精确与 "*.x" 后缀）。
+func (s *Server) annotateConns(raw map[string]any) (map[string]any, error) {
+	rs, _, err := s.loadAll()
+	if err != nil {
+		return raw, err
+	}
+	hostRules, hostRuleIDs, wildRules := ruleIndex(rs)
+	match := func(h string) (string, string) {
+		return matchRuleHost(h, hostRules, hostRuleIDs, wildRules)
 	}
 	for _, key := range []string{"active", "recent"} {
 		arr, _ := raw[key].([]any)
@@ -144,6 +157,38 @@ func (s *Server) registerConns(mux *http.ServeMux) {
 		}
 		raw["running"] = true
 		writeJSON(w, 200, raw)
+	})
+
+	// 连接日志流（结构化事件行）：代理到 fwd /conns/events 并标注规则。
+	mux.HandleFunc("GET /api/connections/events", func(w http.ResponseWriter, r *http.Request) {
+		data, err := s.fwdAdminFetch(http.MethodGet, "/conns/events", nil)
+		if err != nil {
+			writeJSON(w, 200, map[string]any{
+				"ok": false, "running": s.fwdRunning(), "error": err.Error(), "events": []any{},
+			})
+			return
+		}
+		var raw struct {
+			Events []map[string]any `json:"events"`
+		}
+		if json.Unmarshal(data, &raw) != nil {
+			writeJSON(w, 500, map[string]string{"error": "fwd admin 响应无效"})
+			return
+		}
+		rs, _, err := s.loadAll()
+		if err != nil {
+			writeJSON(w, 200, map[string]any{"ok": false, "running": true, "error": err.Error(), "events": []any{}})
+			return
+		}
+		hostRules, hostRuleIDs, wildRules := ruleIndex(rs)
+		for _, ev := range raw.Events {
+			h, _ := ev["host"].(string)
+			name, id := matchRuleHost(h, hostRules, hostRuleIDs, wildRules)
+			if name != "" {
+				ev["rule"], ev["rule_id"] = name, id
+			}
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "running": true, "events": raw.Events})
 	})
 
 	mux.HandleFunc("POST /api/connections/close", func(w http.ResponseWriter, r *http.Request) {
