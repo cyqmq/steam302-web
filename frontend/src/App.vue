@@ -1,5 +1,5 @@
 <script setup>
-import { ref, shallowRef, provide, markRaw, onMounted } from 'vue'
+import { ref, shallowRef, provide, markRaw, onMounted, computed } from 'vue'
 import { Server, Settings, ScrollText, Info, Power, Repeat, Circle } from 'lucide-vue-next'
 import ServicesView from './views/ServicesView.vue'
 import SettingsView from './views/SettingsView.vue'
@@ -15,7 +15,7 @@ const tabs = [
   { key: 'about', label: '关于', icon: Info, comp: markRaw(AboutView), sub: '版本与更新' }
 ]
 const active = ref('services')
-const cur = tabs.find((t) => t.key === active.value)
+const cur = computed(() => tabs.find((t) => t.key === active.value))
 const body = shallowRef(ServicesView)
 
 function onNav(t) {

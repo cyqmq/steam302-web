@@ -112,10 +112,23 @@ async function applyAll() {
   }
 }
 
+function unitCN(s) {
+  if (!s) return '-'
+  const m = {
+    active: '运行中',
+    activating: '启动中',
+    inactive: '已停止',
+    failed: '失败',
+    deactivating: '停止中'
+  }
+  return m[s] || s
+}
+
 const vitals = computed(() => {
   const s = st.value
   const up = (s.upstream && s.upstream.length) || 0
   const svcs = s.services || {}
+  const svc = (name) => ({ v: unitCN(svcs[name]), on: svcs[name] === 'active' })
   return [
     { k: '本地监听端口', v: `${s.https_port || 25584} / ${s.http_port || 24196}` },
     { k: '绑定 IP', v: s.bind_ip || '127.0.0.1' },
@@ -124,10 +137,10 @@ const vitals = computed(() => {
     { k: '上游域名', v: up ? `共 ${up} 个` : '-' },
     { k: 'DNS 重定向', v: s.dns_redirect ? '开启' : '关闭' },
     { k: '系统代理', v: s.system_proxy || '不处理' },
-    { k: 'caddy', v: svcs.caddy || '-', chip: true, on: svcs.caddy === 'active' },
-    { k: 'fwd', v: svcs.fwd || '-', chip: true, on: svcs.fwd === 'active' },
-    { k: 'dnsd', v: svcs.dnsd || '-', chip: true, on: svcs.dnsd === 'active' },
-    { k: 'webui', v: svcs.webui || '-', chip: true, on: svcs.webui === 'active' },
+    { k: 'caddy', ...svc('caddy') },
+    { k: 'fwd', ...svc('fwd') },
+    { k: 'dnsd', ...svc('dnsd') },
+    { k: 'webui', ...svc('webui') },
     { k: '更新时间', v: s.timestamp || '' }
   ]
 })

@@ -2,8 +2,8 @@
 import { ref, computed, watch, inject } from 'vue'
 import {
   Laptop, Play, RefreshCw, Minimize2, LogOut, Server, Network, Signal,
-  Pencil, File, Copy, History, Globe, Zap, List, FileText, Shield, Earth,
-  Gauge, Cloud, Lock, Calendar, Info, Heart, BookOpen, Palette, Settings,
+  Pencil, File, Copy, History, Globe, Zap, List, Shield, Gauge,
+  Cloud, Lock, Calendar, Info, Heart, BookOpen, Palette, Settings,
   Trash2
 } from 'lucide-vue-next'
 import SettingCard from '../components/SettingCard.vue'
@@ -63,10 +63,6 @@ const upsOptions = [
   { value: 'edge', label: 'Edge浏览器图片' },
   { value: 'mod', label: '吧主图片源' },
   { value: 'direct', label: '直连（不代理图片）' }
-]
-const proxyModeOptions = [
-  { value: 'stop', label: '停止监听 & 禁用代理' },
-  { value: 'manual', label: '手动代理（127.0.0.1:28000）' }
 ]
 
 const cdnMap = ref({ akamai: false, cloudfront: false, cloudflare: false, fastly: false })
@@ -308,52 +304,10 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
     <SettingCard title="DNS重定向模式" :icon="Globe">
       <SettingRow
         title="启用DNS重定向"
-        subtitle="开启后由 steam302-web-dnsd 接管 *.steamstatic.com 等的 DNS"
+        subtitle="由 steam302-web-dnsd 接管对游戏/CDN 域名的解析请求"
         :icon="Globe"
       >
         <ToggleSwitch :model-value="inDNS" @change="toggleDNS" />
-      </SettingRow>
-      <SettingRow
-        title="DNS重定向CDN优选"
-        subtitle="让 dnsd 优先返回优选后的 CDN 节点"
-        :icon="Zap"
-      >
-        <ToggleSwitch :model-value="!!s.dns_cdn_prefer" @change="(v) => save({ dns_cdn_prefer: v })" />
-      </SettingRow>
-      <SettingRow
-        title="用户自定义规则"
-        subtitle="在 dnsd 默认规则基础上追加自定义映射"
-        :icon="List"
-      >
-        <ToggleSwitch :model-value="!!s.dns_user_rules" @change="(v) => save({ dns_user_rules: v })" />
-      </SettingRow>
-      <SettingRow title="输出DNS重定向日志" :icon="FileText">
-        <ToggleSwitch :model-value="!!s.dns_log" @change="(v) => save({ dns_log: v })" />
-      </SettingRow>
-    </SettingCard>
-
-    <!-- ⑤ 系统代理模式 -->
-    <SettingCard title="系统代理模式" :icon="Shield">
-      <SettingRow
-        title="自动修改代理(Windows)"
-        subtitle="Web 版仅记录偏好，由桌面端执行"
-        :icon="Earth"
-      >
-        <ToggleSwitch :model-value="!!s.auto_win_proxy" @change="(v) => save({ auto_win_proxy: v })" />
-      </SettingRow>
-      <SettingRow
-        title="监听端口 & 代理模式"
-        subtitle="Web 版不维护系统代理监听"
-        :icon="Settings"
-      >
-        <CustomSelect :model-value="'stop'" :options="proxyModeOptions" disabled />
-      </SettingRow>
-      <SettingRow
-        title="复制代理设置参数"
-        subtitle="把代理端口/profile 信息复制到剪贴板使用"
-        :icon="Copy"
-      >
-        <button class="btn ghostb" @click="loadProfile">复制代理设置</button>
       </SettingRow>
     </SettingCard>
 
@@ -457,6 +411,13 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
 
     <!-- ⑨ 高级选项 -->
     <SettingCard title="高级选项" :icon="Settings">
+      <SettingRow
+        title="复制代理设置参数"
+        subtitle="把代理端口/Profile 信息复制到剪贴板供 PC 客户端使用"
+        :icon="Copy"
+      >
+        <button class="btn ghostb" @click="loadProfile">复制代理设置</button>
+      </SettingRow>
       <SettingRow
         title="日志自动清除"
         subtitle="后端日志达到上限后自动轮转"
