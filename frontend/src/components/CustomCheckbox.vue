@@ -55,7 +55,7 @@ input {
   height: 17px;
   border: 1.5px solid #55484b;
   border-radius: 4px;
-  background: #201c1d;
+  background: #221d1e;
   display: flex;
   align-items: center;
   justify-content: center;

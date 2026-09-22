@@ -129,7 +129,7 @@ function home() {
 }
 .btn {
   border: 0;
-  border-radius: 9px;
+  border-radius: 6px;
   background: linear-gradient(135deg, var(--color-primary-hi), var(--color-primary));
   color: #fff;
   font-weight: 600;

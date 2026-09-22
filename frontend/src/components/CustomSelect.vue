@@ -44,17 +44,17 @@ function change(e) {
 select {
   appearance: none;
   -webkit-appearance: none;
-  background: #201c1d;
+  background: #221d1e;
   border: 1px solid var(--color-border);
   color: #fff;
-  border-radius: 8px;
-  padding: 7px 30px 7px 11px;
+  border-radius: 6px;
+  padding: 7px 32px 7px 11px;
   font-size: 13px;
   cursor: pointer;
   transition: all 0.15s;
 }
 select:hover {
-  background: #262224;
+  background: #282224;
   border-color: #4a4142;
 }
 select:focus {
@@ -64,12 +64,11 @@ select:focus {
 .caret {
   position: absolute;
   right: 11px;
-  width: 10px;
-  height: 6px;
+  width: 12px;
+  height: 12px;
   pointer-events: none;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 6px solid var(--color-muted);
-  transition: border-color 0.15s;
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    no-repeat center / 12px;
+  transition: opacity 0.15s;
 }
 </style>

@@ -127,7 +127,7 @@ onMounted(() => {
 .logo {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: 6px;
   background: linear-gradient(135deg, var(--color-primary-hi), var(--color-primary));
   color: #fff;
   display: flex;
@@ -161,7 +161,7 @@ onMounted(() => {
   background: transparent;
   color: var(--color-muted);
   padding: 10px 13px;
-  border-radius: 9px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 13.5px;
   font-weight: 500;
@@ -260,13 +260,13 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   color: var(--color-fg);
   padding: 9px 18px;
-  border-radius: 9px;
+  border-radius: 6px;
   font-size: 13px;
   opacity: 0;
   pointer-events: none;
   transition: all 0.25s;
   z-index: 99;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 #toast.show {
   opacity: 1;

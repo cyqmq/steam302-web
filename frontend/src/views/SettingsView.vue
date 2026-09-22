@@ -29,6 +29,13 @@ const inLog = computed(() => (s.value.log_max_bytes || 0) > 0)
 const inBackup = computed(() => (s.value.backup_keep || 0) > 0)
 const inDNS = computed(() => !!(store.status && store.status.dns_redirect))
 
+const mbps = ref('20')
+watch(
+  () => s.value.prefer && s.value.prefer.max_mbps,
+  (v) => (mbps.value = String(v || 20)),
+  { immediate: true }
+)
+
 const freqOptions = [
   { value: 'weekly', label: '每周一次' },
   { value: 'daily', label: '每天一次' },
@@ -151,10 +158,19 @@ async function cdnSet(key, v) {
 }
 
 async function saveMbps() {
-  if (!(s.value.prefer && s.value.prefer.max_mbps)) return
-  const p = { ...s.value.prefer }
-  p.max_mbps = Number(p.max_mbps)
-  save({ prefer: p }, '测速速率限制已保存')
+  const v = Number(mbps.value)
+  if (!Number.isFinite(v) || v < 0) {
+    toast('请输入有效的限速值', 'err')
+    return
+  }
+  const p = { ...(s.value.prefer || {}), max_mbps: v }
+  try {
+    await put('/api/settings', { prefer: p })
+    store.settings = { ...s.value, prefer: p }
+    toast('测速速率限制已保存')
+  } catch (e) {
+    toast('保存失败: ' + e.message, 'err')
+  }
 }
 
 async function regen() {
@@ -368,8 +384,9 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
           type="number"
           min="0"
           step="10"
-          :value="s.prefer && s.prefer.max_mbps ? s.prefer.max_mbps : 20"
-          @change="saveMbps"
+          v-model="mbps"
+          @keyup.enter="saveMbps"
+          @blur="saveMbps"
         >
         <span class="unitlabel">Mbps</span>
       </SettingRow>
@@ -487,7 +504,7 @@ const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', 
   flex-wrap: wrap;
 }
 .inp {
-  background: #201c1d;
+  background: #221d1e;
   border: 1px solid var(--color-border);
   color: #fff;
   border-radius: 8px;

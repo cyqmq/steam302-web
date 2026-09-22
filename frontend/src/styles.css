@@ -1,14 +1,14 @@
 :root {
-  --color-bg: #1e1b1c;
-  --color-bg-soft: #262224;
-  --color-card: #2b2425;
-  --color-card-head: #221e1f;
-  --color-border: #3d3435;
-  --color-border-soft: rgba(61, 52, 53, 0.55);
-  --color-primary: #e53935;
-  --color-primary-hi: #ef5350;
-  --color-primary-dim: rgba(229, 57, 53, 0.16);
-  --color-primary-deep: #4a1f24;
+  --color-bg: #1a1a1a;
+  --color-bg-soft: #211d1e;
+  --color-card: #2d2424;
+  --color-card-head: #272021;
+  --color-border: #3c3030;
+  --color-border-soft: rgba(60, 48, 48, 0.55);
+  --color-primary: #d32f2f;
+  --color-primary-hi: #e53935;
+  --color-primary-dim: rgba(211, 47, 47, 0.16);
+  --color-primary-deep: #3f1c1d;
   --color-fg: #e9e9ec;
   --color-muted: #a0a0a0;
   --color-faint: #6f6f7d;
@@ -71,4 +71,16 @@ select,
 button,
 textarea {
   font: inherit;
+}
+
+/* 扁平原生控件：隐藏 number 增减按钮 */
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
 }

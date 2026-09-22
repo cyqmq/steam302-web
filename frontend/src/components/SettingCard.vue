@@ -20,7 +20,7 @@ defineProps({
 .setting-card {
   background: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 8px;
   margin-bottom: 14px;
   overflow: hidden;
   transition: border-color 0.15s;

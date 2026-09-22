@@ -88,7 +88,7 @@ onBeforeUnmount(() => clearInterval(timer))
 .term {
   background: #171516;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 8px;
   height: calc(100vh - 220px);
   overflow: auto;
   padding: 12px 14px;
@@ -107,7 +107,7 @@ onBeforeUnmount(() => clearInterval(timer))
   font-size: 13px;
   padding: 40px;
   border: 1px dashed var(--color-border);
-  border-radius: 10px;
+  border-radius: 8px;
 }
 .btn {
   border: 1px solid var(--color-border);

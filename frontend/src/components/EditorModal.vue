@@ -95,9 +95,9 @@ async function save() {
   width: min(720px, 92vw);
   background: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .head {
   display: flex;

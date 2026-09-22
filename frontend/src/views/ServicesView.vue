@@ -1,39 +1,65 @@
 <script setup>
-import { ref, computed, inject, watch } from 'vue'
-import { Pencil, ListPlus, CheckSquare, Square, RefreshCw, Power, Server } from 'lucide-vue-next'
-import CustomCheckbox from '../components/CustomCheckbox.vue'
+import { ref, computed, inject } from 'vue'
+import { Pencil, ListPlus, CheckSquare, Square, RefreshCw, Power } from 'lucide-vue-next'
+import ToggleSwitch from '../components/ToggleSwitch.vue'
 import EditorModal from '../components/EditorModal.vue'
 import { post } from '../lib/api.js'
 import { store, toast } from '../lib/state.js'
 
 const reload = inject('reload', async () => {})
 
-const GROUP_META = {
-  steam: { label: 'Steam', icon: '🎮' },
-  game: { label: '游戏', icon: '🎲' },
-  image: { label: '图片', icon: '🖼️' },
-  chat: { label: '聊天', icon: '💬' },
-  media: { label: '媒体', icon: '🎬' },
-  misc: { label: '其他', icon: '📦' }
+// 临时功能卡映射：id → { g(分组), t(标题), d(说明) }，后续按实际支持范围再调整
+const FEAT = {
+  steam_store: { g: 'steam', t: 'Steam 商店', d: '加速/修复 Steam 商店访问。' },
+  steam_community: { g: 'steam', t: 'Steam 社区解锁', d: '解锁被限制的社区内容。' },
+  steam_chat: { g: 'steam', t: 'Steam 好友聊天 图片发送修复', d: '修复聊天中图片无法加载/发送的问题。' },
+  youtube_iframe: { g: 'steam', t: 'Steam 创意工坊大图修复', d: '修复创意工坊图片无法显示的问题。' },
+  steam_cdn_akamai: { g: 'steam', t: 'Steam 网页布局/图片修复(CF+Akamai)', d: '修复 Steam 网页排版错乱和图片加载（针对 Cloudflare 和 Akamai CDN）。' },
+  steam_cdn_cloudflare: { g: 'steam', t: 'Steam 网页布局/图片修复(CF+Akamai)', d: '修复 Steam 网页排版错乱和图片加载（针对 Cloudflare 和 Akamai CDN）。' },
+  steam_cdn_fastly: { g: 'steam', t: 'Steam 网页布局/图片修复(Fastly)', d: '修复 Steam 网页排版错乱和图片加载（针对 Fastly CDN）。' },
+  steam_cloud_ugc: { g: 'steam', t: 'Steam 云同步(仅Google)', d: '修复使用 Google 服务的 Steam 云存档同步问题。' },
+  ea_desktop: { g: 'ea', t: 'EA下载重定向Akamai', d: '将 EA 下载流量重定向至 Akamai CDN，提升下载速度。' },
+  google_recaptcha: { g: 'other', t: 'Google 验证码', d: '解决 Google reCAPTCHA 验证码加载失败问题。' },
+  discord_accel: { g: 'other', t: 'Discord 语音', d: '优化 Discord 语音连接。' },
+  twitch_accel: { g: 'other', t: 'Twitch 直播', d: '加速 Twitch 直播观看。' },
+  modio: { g: 'other', t: 'Mod.io', d: '加速 Mod.io 网站/服务访问。' },
+  github_accel: { g: 'other', t: 'Github', d: '加速 GitHub 网页及资源加载。' },
+  blockbench: { g: 'other', t: 'Blockbench', d: '加速 Blockbench（3D建模软件）相关服务。' },
+  fandom_imgfix: { g: 'other', t: 'Fandom 图片修复', d: '修复 Fandom 维基百科的图片加载。' },
+  onedrive_web: { g: 'other', t: 'OneDrive 网页版', d: '加速 OneDrive 网页版访问。' },
+  jsdelivr: { g: 'other', t: 'jsDelivr', d: '加速 jsDelivr CDN 资源加载。' },
+  fallout76_respond: { g: 'other', t: '辐射76 登录修复(1:5:1)', d: '解决《辐射76》登录问题（特定比例修复）。' },
+  csgo_demo_redir: { g: 'other', t: 'CSGO(CS2) Demo录像下载国区转国际', d: '解决 CS2 国区无法下载 Demo 录像的问题。' },
+  uplay_update: { g: 'other', t: 'Uplay 下载CDN重定向国内', d: '将 Uplay（Ubisoft Connect）下载重定向至国内 CDN。' },
+  xbox_cloud: { g: 'other', t: 'XBOX 下载CDN重定向国内', d: '将 Xbox 下载重定向至国内 CDN，提升下载速度。' },
+  origin_dl: { g: 'other', t: 'Origin 游戏下载（HTTPS→HTTP）', d: 'origin-a.akamaihd.net：反代到 HTTP 流媒体边缘绕过高昂 HTTPS 出口。' },
+  pixiv_accel: { g: 'other', t: 'Pixiv 直连', d: 'pixiv 全系主站/API 直连日本源站，图片走专用节点。' },
+  hb_fanatical_imgfix: { g: 'other', t: 'HB / Fanatical 图片修复', d: '修复 Humble Bundle / Fanatical 商店图片加载。' }
 }
 
-const groups = computed(() => {
-  const order = []
-  const map = {}
-  for (const r of store.rules) {
-    const g = r.group || 'misc'
-    if (!map[g]) {
-      map[g] = []
-      order.push(g)
-    }
-    map[g].push(r)
-  }
-  return order.map((g) => ({ key: g, label: (GROUP_META[g] || { label: g }).label, rules: map[g] }))
-})
+const SECT = [
+  { key: 'steam', label: 'Steam 卡片' },
+  { key: 'ea', label: 'EA 卡片' },
+  { key: 'other', label: '其他服务' }
+]
+
+const secs = computed(() =>
+  SECT.map((sec) => {
+    const items = store.rules.map((r) => {
+      const m = FEAT[r.id] || {}
+      return {
+        rule: r,
+        g: m.g || 'other',
+        t: m.t || r.name || r.id,
+        d: m.d || r.description || ''
+      }
+    }).filter((x) => x.g === sec.key)
+    return { ...sec, items }
+  }).filter((s) => s.items.length)
+)
+
 const total = computed(() => store.rules.length)
 const enabled = computed(() => store.rules.filter((r) => r.enabled).length)
-const groupAllOn = (grp) => grp.rules.every((r) => r.enabled)
-const groupAnyOn = (grp) => grp.rules.some((r) => r.enabled)
 
 const st = computed(() => store.status || {})
 
@@ -45,17 +71,6 @@ async function toggleRule(rule, v) {
   try {
     await post('/api/rules/' + rule.id, { enabled: v })
     toast((v ? '已启用 ' : '已停用 ') + rule.id)
-    reload()
-  } catch (e) {
-    toast('操作失败: ' + e.message, 'err')
-  }
-}
-
-async function groupToggle(grp) {
-  const target = !groupAllOn(grp)
-  try {
-    await Promise.all(grp.rules.map((r) => post('/api/rules/' + r.id, { enabled: target })))
-    toast('已' + (target ? '启用' : '停用') + ' ' + grp.label + ' 分组')
     reload()
   } catch (e) {
     toast('操作失败: ' + e.message, 'err')
@@ -75,7 +90,8 @@ async function bulkAll(on) {
 async function stopAll() {
   try {
     const d = await post('/api/services/stop', {})
-    toast('已停止服务: ' + (d?.stopped || []).join(', ') || '（无运行中服务）')
+    const arr = d?.stopped || []
+    toast(arr.length ? '已停止服务: ' + arr.join(', ') : '（无运行中服务）')
     reload()
   } catch (e) {
     toast('停止失败: ' + e.message, 'err')
@@ -108,18 +124,13 @@ const vitals = computed(() => {
     { k: '上游域名', v: up ? `共 ${up} 个` : '-' },
     { k: 'DNS 重定向', v: s.dns_redirect ? '开启' : '关闭' },
     { k: '系统代理', v: s.system_proxy || '不处理' },
-    { k: 'caddy', v: svcs.caddy || '-', chip: true },
-    { k: 'fwd', v: svcs.fwd || '-', chip: true },
-    { k: 'dnsd', v: svcs.dnsd || '-', chip: true },
-    { k: 'webui', v: svcs.webui || '-', chip: true },
+    { k: 'caddy', v: svcs.caddy || '-', chip: true, on: svcs.caddy === 'active' },
+    { k: 'fwd', v: svcs.fwd || '-', chip: true, on: svcs.fwd === 'active' },
+    { k: 'dnsd', v: svcs.dnsd || '-', chip: true, on: svcs.dnsd === 'active' },
+    { k: 'webui', v: svcs.webui || '-', chip: true, on: svcs.webui === 'active' },
     { k: '更新时间', v: s.timestamp || '' }
   ]
 })
-
-watch(
-  () => st.value.timestamp,
-  () => {}
-)
 </script>
 
 <template>
@@ -136,31 +147,25 @@ watch(
 
       <div v-if="store.rules.length === 0" class="empty">正在读取规则…</div>
 
-      <section v-for="grp in groups" :key="grp.key" class="grp">
-        <div class="grp-head">
-          <CustomCheckbox
-            :model-value="groupAllOn(grp)"
-            :label="'' + (GROUP_META[grp.key] || {}).emoji + ' ' + grp.label"
-            @change="groupToggle(grp)"
-          />
-          <span class="cnt">{{ grp.rules.filter((r) => r.enabled).length }}/{{ grp.rules.length }}</span>
+      <section v-for="sec in secs" :key="sec.key" class="sec">
+        <div class="sec-head">
+          <h3>{{ sec.label }}</h3>
+          <span class="cnt">{{ sec.items.filter((i) => i.rule.enabled).length }}/{{ sec.items.length }} 已启用</span>
         </div>
-        <div
-          v-for="ru in grp.rules"
-          :key="ru.id"
-          class="rule"
-          :class="{ off: !ru.enabled }"
-        >
-          <div class="line">
-            <CustomCheckbox :model-value="ru.enabled" @change="(v) => toggleRule(ru, v)" />
-            <div class="rl">
-              <div class="rn">{{ ru.name || ru.id }}</div>
-              <div class="rd">{{ ru.description }}</div>
+        <div class="fcards">
+          <div
+            v-for="it in sec.items"
+            :key="it.rule.id"
+            class="fcard"
+            :class="{ off: !it.rule.enabled }"
+          >
+            <div class="ftxt">
+              <div class="ft">{{ it.t }}</div>
+              <div class="fd">{{ it.d }}</div>
             </div>
+            <button class="ibtn" title="编辑规则 JSON" @click="openEditor(it.rule.id)"><Pencil :size="14" /></button>
+            <ToggleSwitch :model-value="it.rule.enabled" @change="(v) => toggleRule(it.rule, v)" />
           </div>
-          <span class="rid">{{ ru.id }}</span>
-          <span class="lamp" :class="{ on: ru.enabled }"></span>
-          <button class="ibtn" title="编辑规则 JSON" @click="openEditor(ru.id)"><Pencil :size="14" /></button>
         </div>
       </section>
     </div>
@@ -174,14 +179,13 @@ watch(
           </button>
           <button class="btn sec" @click="stopAll()"><Power :size="14" /> 停止全部</button>
         </div>
-        <div v-if="st.system_proxy" class="hint">检测到系统代理：{{ st.system_proxy }}</div>
       </div>
 
       <div class="vitals">
         <h4>网络监听 / 设置</h4>
         <div v-for="v in vitals" :key="v.k" class="vi">
           <span class="vk">{{ v.k }}</span>
-          <span class="vv" :class="{ chip }" :style="chip && (v.v === 'active' ? 'color:var(--color-on)' : v.v === 'inactive' ? 'color:var(--color-faint)' : '')">{{ v.v }}</span>
+          <span class="vv" :class="{ on: v.on }">{{ v.v }}</span>
         </div>
       </div>
     </aside>
@@ -226,87 +230,63 @@ watch(
   gap: 8px;
   flex-wrap: wrap;
 }
-.grp {
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  margin-bottom: 12px;
-  overflow: hidden;
-  transition: border-color 0.15s;
+.sec {
+  margin-bottom: 16px;
 }
-.grp:hover {
-  border-color: #4a4142;
-}
-.grp-head {
+.sec-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  background: var(--color-bg-soft);
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 2px 8px;
+}
+.sec-head h3 {
+  margin: 0;
+  font-size: 15px;
   font-weight: 700;
   color: #fff;
-  font-size: 13px;
 }
-.cnt {
-  color: var(--color-muted);
-  font-weight: 400;
+.sec-head .cnt {
+  color: var(--color-faint);
   font-size: 12px;
 }
-.rule {
+.fcards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fcard {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 9px 14px;
-  border-top: 1px solid var(--color-border-soft);
-  transition: background 0.12s;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: border-color 0.15s, background 0.15s;
 }
-.rule:hover {
-  background: rgba(255, 255, 255, 0.035);
+.fcard:hover {
+  border-color: #4a4142;
+  background: var(--color-bg-soft);
 }
-.rule.off .rn {
+.fcard.off {
+  opacity: 0.72;
+}
+.fcard.off .ft {
   color: var(--color-faint);
 }
-.line {
+.ftxt {
   flex: 1;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
-.rl {
-  min-width: 0;
-}
-.rn {
+.ft {
   color: #fff;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.rd {
+.fd {
   color: var(--color-muted);
-  font-size: 11.5px;
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.rid {
-  color: var(--color-faint);
-  font-size: 11px;
-  font-family: ui-monospace, Consolas, monospace;
-  flex: none;
-}
-.lamp {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--color-faint);
-  flex: none;
-}
-.lamp.on {
-  background: var(--color-on);
+  font-size: 12px;
+  margin-top: 3px;
 }
 .ibtn {
   width: 26px;
@@ -330,7 +310,7 @@ watch(
 .vitals {
   background: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 12px 14px;
 }
 .ctl h4,
@@ -345,11 +325,6 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-.hint {
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--color-off);
 }
 .vi {
   display: flex;
@@ -366,13 +341,16 @@ watch(
   color: var(--color-muted);
 }
 .vv {
-  color: var(--color-fg);
   font-family: ui-monospace, Consolas, monospace;
   text-align: right;
+  color: var(--color-fg);
+}
+.vv.on {
+  color: var(--color-on);
 }
 .btn {
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: linear-gradient(135deg, var(--color-primary-hi), var(--color-primary));
   color: #fff;
   font-weight: 600;
