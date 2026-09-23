@@ -11,7 +11,11 @@
         {
           "type": "reverse_proxy",
           "upstreams": [
-            "https://20.205.243.166"
+            "https://140.82.112.3",
+            "https://140.82.114.4",
+            "https://20.205.243.166",
+            "https://20.27.177.113",
+            "https://203.98.7.65"
           ],
           "lb": {
             "fail_duration": "30s",
@@ -56,7 +60,10 @@
         {
           "type": "reverse_proxy",
           "upstreams": [
-            "https://ghgist.steam302.xyz"
+            "https://140.82.112.3",
+            "https://140.82.114.3",
+            "https://20.205.243.166",
+            "https://20.27.177.113"
           ],
           "lb": {
             "fail_duration": "30s",
@@ -100,7 +107,9 @@
         {
           "type": "reverse_proxy",
           "upstreams": [
-            "https://20.27.177.116"
+            "https://140.82.112.3",
+            "https://20.27.177.116",
+            "https://20.205.243.168"
           ],
           "lb": {
             "fail_duration": "30s",
@@ -145,7 +154,10 @@
         {
           "type": "reverse_proxy",
           "upstreams": [
-            "https://185.199.109.133"
+            "https://185.199.108.133",
+            "https://185.199.109.133",
+            "https://185.199.110.133",
+            "https://185.199.111.133"
           ],
           "lb": {
             "fail_duration": "30s",
