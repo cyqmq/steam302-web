@@ -27,6 +27,7 @@ type Server struct {
 	patterns    []string
 	userHosts   map[string]string // 规范化 pattern -> 应答 IP
 	userPats    []string          // 排序后的用户规则 pattern（供后缀匹配）
+	blacklist   []string          // 不劫持模式（DNS CDN 黑名单）
 	cache       *answerCache
 	logger      *log.Logger
 	queryLogger *log.Logger // 非 nil 时逐条记录查询
@@ -108,6 +109,21 @@ func WithQueryLogger(l *log.Logger) Option {
 	}
 }
 
+// WithBlacklist 注入"不劫持"域名模式列表（DNS CDN 黑名单）：命中这些
+// 模式的域名即使属于劫持集合也跳过自定义应答，直接转发上游。
+func WithBlacklist(patterns []string) Option {
+	return func(s *Server) {
+		var bl []string
+		for _, p := range patterns {
+			n := normalizeName(strings.TrimSpace(p))
+			if n != "" {
+				bl = append(bl, n)
+			}
+		}
+		s.blacklist = bl
+	}
+}
+
 // New 创建 DNS 重定向服务器。domains 为劫持域名模式列表，支持
 // "*.example.com" 通配后缀。
 func New(bind string, domains []string, opts ...Option) *Server {
@@ -129,9 +145,18 @@ func New(bind string, domains []string, opts ...Option) *Server {
 	return s
 }
 
-// Hijacked 报告域名是否命中劫持集合（含用户自定义规则）。
+// Hijacked 报告域名是否命中劫持集合（含用户自定义规则、排除黑名单）。
 func (s *Server) Hijacked(qname string) bool {
-	return matchAny(normalizeName(qname), s.patterns) || matchAny(normalizeName(qname), s.userPats)
+	name := normalizeName(qname)
+	if matchAny(name, s.blacklist) {
+		return false
+	}
+	return matchAny(name, s.patterns) || matchAny(name, s.userPats)
+}
+
+// Blacklisted 报告域名是否命中不劫持黑名单。
+func (s *Server) Blacklisted(qname string) bool {
+	return matchAny(normalizeName(qname), s.blacklist)
 }
 
 // answerIPFor 优先返回用户自定义规则命中的 IP，否则默认应答 IP。

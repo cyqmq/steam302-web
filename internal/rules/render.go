@@ -384,6 +384,13 @@ func renderGlobal(env *Env) string {
 	if b := env.Listen.BindIP; b != "" && b != "0.0.0.0" {
 		lines = append(lines, "    default_bind "+b)
 	}
+	if env.Listen.HTTP3 {
+		lines = append(lines,
+			"    servers {",
+			"        protocols h1 h2 h3",
+			"    }",
+		)
+	}
 	lines = append(lines, "}")
 	return strings.Join(lines, "\n")
 }

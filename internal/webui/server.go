@@ -51,6 +51,7 @@ type settingsView struct {
 	BindIP      string             `json:"bind_ip"`
 	HTTPSPort   int                `json:"https_port"`
 	HTTPPort    int                `json:"http_port"`
+	HTTP3       bool               `json:"http3"`
 	LogMaxBytes int64              `json:"log_max_bytes"`
 	BackupKeep  int                `json:"backup_keep"`
 	CAYears     int                `json:"ca_years"`
@@ -77,6 +78,7 @@ type settingsView struct {
 	DNSAnswerIP      string   `json:"dns_answer_ip"`
 	DNSQueryLog      bool     `json:"dns_query_log"`
 	DNSUserRulesFile bool     `json:"dns_user_rules_file"`
+	FirewallBackend  string   `json:"dns_firewall_backend"`
 	DNSResolvManaged bool     `json:"dns_resolv_managed"`
 	DNSLANRedirect   bool     `json:"dns_lan_redirect"`
 }
@@ -118,6 +120,12 @@ func (s *Server) profile() (proxyProfile, error) {
 			for _, h := range site.Hosts {
 				hostSet[h] = true
 			}
+		}
+	}
+	// pac_user.txt：用户补充域名也纳入 PAC 白名单（走代理）。
+	for _, p := range s.loadPACUser() {
+		if p != "" {
+			hostSet[p] = true
 		}
 	}
 	hosts := make([]string, 0, len(hostSet))
@@ -387,6 +395,7 @@ func (s *Server) settings() settingsView {
 		BindIP:           env.Listen.BindIP,
 		HTTPSPort:        env.Listen.HTTPSPort,
 		HTTPPort:         env.Listen.HTTPPort,
+		HTTP3:            env.Listen.HTTP3,
 		LogMaxBytes:      env.Fwd.LogMaxBytes,
 		BackupKeep:       env.Hosts.BackupKeep,
 		CAYears:          env.Cert.CAYears,
@@ -407,6 +416,7 @@ func (s *Server) settings() settingsView {
 		DNSAnswerIP:      orStr(env.DNS.AnswerIP, "127.0.0.1"),
 		DNSQueryLog:      env.DNS.QueryLog,
 		DNSUserRulesFile: env.DNS.UserRules,
+		FirewallBackend:  orStr(env.DNS.FirewallBackend, "auto"),
 		DNSResolvManaged: env.DNS.ResolvManaged,
 		DNSLANRedirect:   env.DNS.LANRedirect,
 	}
@@ -454,10 +464,11 @@ func alignFwdMappings(in []rules.FwdMap, httpPort, httpsPort int) []rules.FwdMap
 			continue
 		}
 		seen[m.From] = true
-		out = append(out, rules.FwdMap{From: m.From, To: to})
+		// 443 默认启用 UDP 中继（HTTP/3），80 不启用。
+		out = append(out, rules.FwdMap{From: m.From, To: to, UDP: m.From == 443})
 	}
 	if !seen[443] {
-		out = append(out, rules.FwdMap{From: 443, To: httpsPort})
+		out = append(out, rules.FwdMap{From: 443, To: httpsPort, UDP: true})
 	}
 	if !seen[80] {
 		out = append(out, rules.FwdMap{From: 80, To: httpPort})
@@ -729,7 +740,9 @@ func (s *Server) tailLogs(all bool, maxLines int) (logsView, error) {
 	return view, nil
 }
 
-const (
+// appName/appAuthor/appHome 供 /api/version 展示；appVersion 可在构建时
+// 通过 -ldflags "-X steam302-web/internal/webui.appVersion=vX.Y.Z" 注入。
+var (
 	appName    = "Steamcommunity 302 Web"
 	appVersion = "2.0.0"
 	appAuthor  = "steam302-web 开发组 · 界面复刻自原版 Steamcommunity 302 (By.羽翼城 | Dogfight360)"
@@ -1076,6 +1089,8 @@ func (s *Server) Handler() http.Handler {
 		}
 		writeJSON(w, 200, map[string]any{"domains": bl})
 	})
+	mux.HandleFunc("GET /api/file", s.handleFileGet)
+	mux.HandleFunc("POST /api/file", s.handleFileSave)
 	mux.HandleFunc("PUT /api/blacklist", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Domains []string `json:"domains"`
@@ -1123,6 +1138,7 @@ func (s *Server) Handler() http.Handler {
 			BindIP      *string             `json:"bind_ip"`
 			HTTPSPort   *int                `json:"https_port"`
 			HTTPPort    *int                `json:"http_port"`
+			HTTP3       *bool               `json:"http3"`
 			LogMaxBytes *int64              `json:"log_max_bytes"`
 			BackupKeep  *int                `json:"backup_keep"`
 			CAYears     *int                `json:"ca_years"`
@@ -1144,8 +1160,9 @@ func (s *Server) Handler() http.Handler {
 			DNSUpstream   *[]string `json:"dns_upstream"`
 			DNSTTL        *uint32   `json:"dns_ttl"`
 			DNSAnswerIP   *string   `json:"dns_answer_ip"`
-			DNSQueryLog   *bool     `json:"dns_query_log"`
-		}
+DNSQueryLog   *bool     `json:"dns_query_log"`
+		DNSFWBackend  *string   `json:"dns_firewall_backend"`
+	}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeJSON(w, 400, map[string]string{"error": "body 无效: " + err.Error()})
 			return
@@ -1192,6 +1209,16 @@ func (s *Server) Handler() http.Handler {
 		}
 		if body.HTTPPort != nil {
 			env.Listen.HTTPPort = *body.HTTPPort
+		}
+		if body.HTTP3 != nil {
+			env.Listen.HTTP3 = *body.HTTP3
+			// HTTP/3 需要 443 UDP 中继到 caddy 的 https_port。
+			// 若为 false 则撤掉 443 的 UDP 中继，保留 TCP。
+			for i := range env.Fwd.Mappings {
+				if env.Fwd.Mappings[i].From == 443 {
+					env.Fwd.Mappings[i].UDP = *body.HTTP3
+				}
+			}
 		}
 		if env.Listen.HTTPSPort == env.Listen.HTTPPort {
 			writeJSON(w, 400, map[string]string{"error": "http_port 不能与 https_port 相同"})
@@ -1310,6 +1337,15 @@ func (s *Server) Handler() http.Handler {
 		}
 		if body.DNSQueryLog != nil {
 			env.DNS.QueryLog = *body.DNSQueryLog
+		}
+		if body.DNSFWBackend != nil {
+			switch *body.DNSFWBackend {
+			case "", "auto", "iptables", "nftables":
+				env.DNS.FirewallBackend = *body.DNSFWBackend
+			default:
+				writeJSON(w, 400, map[string]string{"error": "dns_firewall_backend 须为 auto|iptables|nftables"})
+				return
+			}
 		}
 		if err := s.saveEnv(env); err != nil {
 			writeJSON(w, 500, map[string]string{"error": err.Error()})
@@ -1521,6 +1557,8 @@ func (s *Server) Handler() http.Handler {
 			"has_update": newerVersion(appVersion, latest),
 		})
 	})
+	mux.HandleFunc("GET /api/update/status", s.handleUpdateStatus)
+	mux.HandleFunc("POST /api/update/start", s.handleUpdateStart)
 
 	return mux
 }

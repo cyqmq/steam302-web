@@ -20,10 +20,11 @@ echo "caddy:      $CADDY_BIN"
 
 # 确保二进制齐全（缺则构建）
 export PATH="$PATH:/usr/local/go/bin"
-for b in genconfig genhosts genpki s302fwd webui prefer dnsd catrust dnsredir; do
+TAG="$(git -C "$ROOT" describe --tags --always 2>/dev/null | sed 's/^v//' || echo '2.0.0')"
+for b in genconfig genhosts genpki s302fwd webui prefer dnsd catrust dnsredir update; do
   if [[ ! -x "$ROOT/bin/$b" ]]; then
     echo "缺少 bin/$b，正在构建..."
-    (cd "$ROOT" && go build -o "bin/$b" "./cmd/$b")
+    (cd "$ROOT" && go build -ldflags "-X steam302-web/internal/webui.appVersion=$TAG" -o "bin/$b" "./cmd/$b")
   fi
 done
 

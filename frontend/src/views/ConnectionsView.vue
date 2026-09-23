@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Search, X, Pause, Play, Trash2, Wifi, WifiOff, Loader2, Unplug } from 'lucide-vue-next'
+import { Search, X, Pause, Play, Trash2, Wifi, WifiOff, Loader2, Unplug, Download } from 'lucide-vue-next'
 import CustomSelect from '../components/CustomSelect.vue'
 import { store, toast } from '../lib/state.js'
 
@@ -94,6 +94,30 @@ async function disconnectAll() {
   }
 }
 
+function exportLogs() {
+  const rows = filtered.value.map((ev) => ({
+    时间: fmtTime(ev.at),
+    等级: ev.level || 'INFO',
+    事件: ev.kind,
+    主机: ev.host || '',
+    来源: ev.remote || '',
+    规则: ev.rule || '',
+    上行: ev.up || 0,
+    下行: ev.down || 0,
+    持续_ms: ev.dur_ms || 0
+  }))
+  const keys = ['时间', '等级', '事件', '主机', '来源', '规则', '上行', '下行', '持续_ms']
+  const esc = (s) => '"' + String(s).replace(/"/g, '""') + '"'
+  const csv = [keys.join(',')].concat(rows.map((r) => keys.map((k) => esc(r[k])).join(','))).join('\n')
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = '连接日志-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv'
+  a.click()
+  URL.revokeObjectURL(a.href)
+  toast('已导出 ' + rows.length + ' 条连接日志')
+}
+
 const filtered = computed(() => {
   const kw = q.value.trim().toLowerCase()
   return events.value.filter((ev) => {
@@ -171,6 +195,7 @@ onBeforeUnmount(() => clearInterval(poll))
           <Pause v-if="!paused" :size="13" /><Play v-else :size="13" /> {{ paused ? '继续' : '暂停' }}
         </button>
         <button class="btn ghostb" @click="clearAll"><Trash2 :size="13" /> 清空</button>
+        <button class="btn ghostb" :disabled="!filtered.length" @click="exportLogs"><Download :size="13" /> 导出</button>
         <button class="btn ghostb" title="断开所有活动转发会话" @click="disconnectAll"><Unplug :size="13" /> 断开全部活动</button>
       </div>
       <span class="pill" :class="status">

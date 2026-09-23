@@ -100,7 +100,7 @@ func run(cf fwd.Config) {
 func maps(in []rules.FwdMap) []fwd.Mapping {
 	out := make([]fwd.Mapping, 0, len(in))
 	for _, m := range in {
-		out = append(out, fwd.Mapping{From: m.From, To: m.To})
+		out = append(out, fwd.Mapping{From: m.From, To: m.To, UDP: m.UDP})
 	}
 	return out
 }

@@ -2,6 +2,9 @@
     admin off
     auto_https off
     default_bind 127.0.0.1
+    servers {
+        protocols h1 h2 h3
+    }
 }
 
 https://github.com:25584 https://www.github.com:25584 {

@@ -53,6 +53,27 @@ const dnsResolv = computed(() => !!(s.value.dns_resolv_managed || (store.dns && 
 const dnsLAN = computed(() => !!(s.value.dns_lan_redirect || (store.dns && store.dns.lan_redirect)))
 const dnsActive = computed(() => !!((store.dns && store.dns.active) || (store.status && store.status.dns_redirect)))
 
+// —— 防火墙后端偏好（dnsredir 局域网重定向用）——
+const fwBackend = computed(() => s.value.dns_firewall_backend || 'auto')
+const fwOptions = [
+  { value: 'auto', label: '自动探测' },
+  { value: 'iptables', label: 'iptables' },
+  { value: 'nftables', label: 'nftables' }
+]
+async function saveFWBackend(e) {
+  try {
+    const d = await put('/api/settings', { dns_firewall_backend: e.value })
+    if (d && d.error) {
+      toast(d.error, 'err')
+      return
+    }
+    store.settings = { ...s.value, dns_firewall_backend: e.value }
+    toast('防火墙后端已保存，重新安装局域网重定向后生效')
+  } catch (err) {
+    toast('保存失败: ' + err.message, 'err')
+  }
+}
+
 // —— CDN 定时健康检测 ——
 const preferTimer = ref({ enabled: false, minutes: 30 })
 const preferMinutes = computed(() => String(preferTimer.value.minutes || 30))
@@ -170,6 +191,20 @@ function savePorts() {
   httpsPort.value = String(h)
   httpPort.value = String(p)
   save({ https_port: h, http_port: p }, '端口已保存，点击下方“重载服务”生效')
+}
+async function setHTTP3(v) {
+  try {
+    const d = await put('/api/settings', { http3: v })
+    if (d && d.error) {
+      toast(d.error, 'err')
+      return
+    }
+    store.settings = { ...s.value, http3: v }
+    toast(v ? 'HTTP/3 已开启，正在重载服务…' : 'HTTP/3 已关闭，正在重载服务…')
+    await reloadServices()
+  } catch (e) {
+    toast('保存失败: ' + e.message, 'err')
+  }
 }
 async function reloadServices() {
   if (portNum(httpsPort.value, 25584) !== (s.value.https_port || 25584) || portNum(httpPort.value, 24196) !== (s.value.http_port || 24196)) {
@@ -390,6 +425,42 @@ const freqVal = computed(() => {
 
 const openTutorial = () => window.open('https://github.com/cyqmq/steam302-web', '_blank')
 
+// —— 用户文件槽编辑（复刻原版 dns_hosts / pac_user / dns_blacklist 三个文本槽）——
+const slotDefs = [
+  { name: 'dns_hosts', label: '自定义 DNS 解析（dns_hosts.txt）', sub: '自定义域名→IP 解析规则，覆盖默认应答' },
+  { name: 'pac_user', label: 'PAC 补充域名（pac_user.txt）', sub: '额外加入 proxy.pac 走代理的域名，保存后即时生效' },
+  { name: 'dns_blacklist', label: 'DNS CDN 黑名单（dns_blacklist.txt）', sub: '不劫持、直连上游 DNS 的域名，dnsd 重启后生效' }
+]
+const fileModal = ref(null)
+const fileTxt = ref('')
+const fileSaving = ref(false)
+async function openSlot(name) {
+  try {
+    const d = await get('/api/file?name=' + name)
+    fileModal.value = { name: d.name, path: d.path, hint: d.hint }
+    fileTxt.value = d.content || ''
+  } catch (e) {
+    toast('读取失败: ' + e.message, 'err')
+  }
+}
+async function saveSlot() {
+  if (!fileModal.value) return
+  fileSaving.value = true
+  try {
+    const d = await post('/api/file', { name: fileModal.value.name, content: fileTxt.value })
+    if (d && d.ok) {
+      toast('已保存 ' + fileModal.value.path + (fileModal.value.name === 'dns_blacklist' ? '（dnsd 重启后生效）' : ''))
+      fileModal.value = null
+    } else {
+      toast((d && d.error) || '保存失败', 'err')
+    }
+  } catch (e) {
+    toast('保存失败: ' + e.message, 'err')
+  } finally {
+    fileSaving.value = false
+  }
+}
+
 // 设置子区块导航（复刻原版 常规/网络/CDN/系统 布局）
 const subdivisions = [
   { key: 'general', label: '常规', icon: Settings },
@@ -474,6 +545,13 @@ const sub = ref('general')
         :icon="Signal"
       >
         <input class="inp" type="number" min="1" max="65535" v-model="httpPort" @keyup.enter="savePorts" @blur="savePorts" />
+      </SettingRow>
+      <SettingRow
+        title="对外 HTTP/3（QUIC）"
+        subtitle="浏览器优先走 QUIC；443 UDP 经转发进程透传到 caddy，修改后自动重载服务生效"
+        :icon="Cloud"
+      >
+        <ToggleSwitch :model-value="!!s.http3" @change="setHTTP3" />
       </SettingRow>
     </SettingCard>
 
@@ -564,6 +642,13 @@ const sub = ref('general')
       >
         <ToggleSwitch :model-value="dnsLAN" @change="toggleLAN" />
       </SettingRow>
+      <SettingRow
+        title="防火墙后端"
+        subtitle="局域网重定向使用的防火墙工具偏好（dnsredir 读取）"
+        :icon="Shield"
+      >
+        <CustomSelect :model-value="fwBackend" :options="fwOptions" @change="saveFWBackend" />
+      </SettingRow>
     </SettingCard>
 
     <SettingCard title="代理 & PAC" :icon="Globe">
@@ -587,6 +672,18 @@ const sub = ref('general')
         :icon="RefreshCw"
       >
         <button class="btn sec" @click="reloadServices"><RefreshCw :size="15" /> 重载服务</button>
+      </SettingRow>
+    </SettingCard>
+
+    <SettingCard title="用户文件槽" :icon="File">
+      <SettingRow
+        v-for="f in slotDefs"
+        :key="f.name"
+        :title="f.label"
+        :subtitle="f.sub"
+        :icon="File"
+      >
+        <button class="btn ghostb" @click="openSlot(f.name)">编辑</button>
       </SettingRow>
     </SettingCard>
     </template>
@@ -730,6 +827,24 @@ const sub = ref('general')
       </SettingRow>
     </SettingCard>
     </template>
+  </div>
+
+  <!-- 用户文件槽编辑弹窗 -->
+  <div v-if="fileModal" class="ov" @click.self="fileModal = null">
+    <div class="obox">
+      <div class="otitle">
+        <span>编辑 {{ fileModal.path }}</span>
+        <button class="otimes" @click="fileModal = null">✕</button>
+      </div>
+      <p class="ohint">{{ fileModal.hint }}</p>
+      <textarea class="otxt" v-model="fileTxt" spellcheck="false"></textarea>
+      <div class="obtns">
+        <button class="btn ghostb" @click="fileModal = null">取消</button>
+        <button class="btn" :disabled="fileSaving" @click="saveSlot">
+          <File :size="15" /> {{ fileSaving ? '保存中…' : '保存' }}
+        </button>
+      </div>
+    </div>
   </div>
   </div>
 </template>
@@ -881,5 +996,62 @@ const sub = ref('general')
 }
 .ibtn.circle:hover {
   filter: brightness(1.15);
+}
+.ov {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.obox {
+  width: min(680px, 92vw);
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.otitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+.otimes {
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 15px;
+  cursor: pointer;
+}
+.otimes:hover {
+  color: var(--color-strong);
+}
+.ohint {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.otxt {
+  width: 100%;
+  min-height: 320px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  padding: 10px;
+  box-sizing: border-box;
+}
+.obtns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
 }
 </style>

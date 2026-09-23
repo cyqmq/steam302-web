@@ -21,8 +21,9 @@ import (
 
 // Mapping forwards a From port to a To port on the bind address.
 type Mapping struct {
-	From int `json:"from"`
-	To   int `json:"to"`
+	From int  `json:"from"`
+	To   int  `json:"to"`
+	UDP  bool `json:"udp,omitempty"` // 同时按 UDP 中继到目标（HTTP/3 / QUIC 用）
 }
 
 // Config describes the forward set. PidFile/LogFile are managed by the CLI.
@@ -72,6 +73,18 @@ func Serve(ctx context.Context, cfg Config) error {
 				}
 			}
 		}(m)
+		if m.UDP {
+			wg.Add(1)
+			go func(m Mapping) {
+				defer wg.Done()
+				if err := serveOneUDP(ctx, cfg, m); err != nil {
+					select {
+					case errCh <- fmt.Errorf("udp %s -> %d: %w", cfg.BindParam(m), m.To, err):
+					default:
+					}
+				}
+			}(m)
+		}
 	}
 	wg.Wait()
 	select {
@@ -79,6 +92,82 @@ func Serve(ctx context.Context, cfg Config) error {
 		return err
 	default:
 		return nil
+	}
+}
+
+// udpIdleTimeout 决定 UDP 中继自然老化时间；QUIC 空闲连接会被丢弃后重新建立。
+const udpIdleTimeout = 90 * time.Second
+
+// udpSession 是一个客户端地址 → 上游 UDP conn 的中继对。
+type udpSession struct {
+	up      net.Conn // net.Dial("udp", toAddr)
+	lastUse time.Time
+}
+
+// serveOneUDP 按 UDP 中继一个映射（HTTP/3 / QUIC 场景）：监听 From 端口的
+// UDP，把每个客户端 5 元组映射到一个直达 To 端口 UDP conn，双向搬运。
+func serveOneUDP(ctx context.Context, cfg Config, m Mapping) error {
+	pc, err := net.ListenPacket("udp", cfg.BindParam(m))
+	if err != nil {
+		return err
+	}
+	go func() {
+		<-ctx.Done()
+		_ = pc.Close()
+	}()
+	toAddr := net.JoinHostPort(cfg.Bind, strconv.Itoa(m.To))
+	sess := make(map[string]*udpSession)
+	var mu sync.Mutex
+	buf := make([]byte, 64<<10)
+	for {
+		n, peer, err := pc.ReadFrom(buf)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			continue
+		}
+		key := peer.String()
+		now := time.Now()
+		mu.Lock()
+		s, ok := sess[key]
+		if !ok {
+			up, derr := net.Dial("udp", toAddr)
+			if derr != nil {
+				mu.Unlock()
+				continue
+			}
+			s = &udpSession{up: up}
+			sess[key] = s
+			go copyUDPUpstream(ctx, pc, peer, s, &mu, sess, key)
+		}
+		s.lastUse = now
+		mu.Unlock()
+		_, _ = s.up.Write(buf[:n])
+	}
+}
+
+// copyUDPUpstream 把上游应答写回客户端，并在空闲超时后清理会话。
+func copyUDPUpstream(ctx context.Context, pc net.PacketConn, peer net.Addr, s *udpSession, mu *sync.Mutex, sess map[string]*udpSession, key string) {
+	defer func() {
+		_ = s.up.Close()
+		mu.Lock()
+		if sess[key] == s {
+			delete(sess, key)
+		}
+		mu.Unlock()
+	}()
+	buf := make([]byte, 64<<10)
+	for {
+		_ = s.up.SetReadDeadline(time.Now().Add(udpIdleTimeout))
+		n, err := s.up.Read(buf)
+		if err != nil {
+			return
+		}
+		_, _ = pc.WriteTo(buf[:n], peer)
+		mu.Lock()
+		s.lastUse = time.Now()
+		mu.Unlock()
 	}
 }
 

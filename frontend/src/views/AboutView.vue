@@ -1,10 +1,13 @@
 <script setup>
 import { ref } from 'vue'
-import { Repeat, RefreshCw, ExternalLink } from 'lucide-vue-next'
+import { Repeat, RefreshCw, Download, ExternalLink, Loader2 } from 'lucide-vue-next'
 import { store, toast } from '../lib/state.js'
+import { get, post } from '../lib/api.js'
 import { loadVersion } from '../lib/data.js'
 
 const busy = ref(false)
+const updating = ref(false)
+const updMsg = ref('')
 
 const v = () => store.version || {}
 
@@ -22,6 +25,58 @@ async function check() {
   } finally {
     busy.value = false
   }
+}
+
+// —— 自动更新（POST /api/update/start → 轮询状态）——
+const PHASE_LABEL = {
+  idle: '',
+  checking: '正在检查版本…',
+  downloading: '正在下载发布包…',
+  verifying: '正在校验 sha256…',
+  swapping: '正在备份并替换二进制…',
+  restarting: '正在重启服务…',
+  done: '更新完成',
+  error: '更新失败'
+}
+async function doUpdate() {
+  updating.value = true
+  updMsg.value = '正在启动后台更新进程…'
+  try {
+    const d = await post('/api/update/start', {})
+    if (!d || !d.started) {
+      updating.value = false
+      toast((d && (d.error || d.hint)) || '启动更新失败', 'err')
+      updMsg.value = ''
+      return
+    }
+    pollUpdate()
+  } catch (e) {
+    updating.value = false
+    toast('启动更新失败: ' + e.message, 'err')
+    updMsg.value = ''
+  }
+}
+function pollUpdate() {
+  const t = setTimeout(async () => {
+    try {
+      const st = await get('/api/update/status')
+      updMsg.value = (st && PHASE_LABEL[st.phase]) || st?.message || ''
+      if (st?.done) {
+        updating.value = false
+        if (st.ok) {
+          toast('已升级到 v' + (st.latest || '') + '，请刷新页面')
+          setTimeout(() => location.reload(), 1200)
+        } else {
+          toast(st.error || '更新失败', 'err')
+        }
+        return
+      }
+      pollUpdate()
+    } catch {
+      // webui 重启中：短暂后重试
+      setTimeout(pollUpdate, 2000)
+    }
+  }, 1200)
 }
 
 function home() {
@@ -50,13 +105,21 @@ function home() {
       </div>
 
       <div class="ops">
-        <button class="btn" :disabled="busy" @click="check">
+        <button class="btn" :disabled="busy || updating" @click="check">
           <RefreshCw :size="14" :class="{ spin: busy }" /> 检查更新
+        </button>
+        <button
+          v-if="v().has_update && v().latest && !updating"
+          class="btn upbtn"
+          @click="doUpdate"
+        >
+          <Download :size="14" /> 自动更新到 v{{ v().latest }}
         </button>
         <button class="btn sec" @click="home">
           <ExternalLink :size="14" /> 项目主页
         </button>
       </div>
+      <p v-if="updating" class="upd"><Loader2 :size="13" class="spin" /> {{ updMsg }}</p>
 
       <p class="lic">
         By.羽翼城|Dogfight360 · Donate / 打赏开发者 — 本 Web 管理端为兼容复刻，功能以 Web 后端支持范围为准。
@@ -149,6 +212,21 @@ function home() {
 }
 .btn.sec:hover {
   filter: brightness(1.25);
+}
+.btn.upbtn {
+  background: var(--color-primary-deep);
+  color: var(--color-on-deep);
+}
+.btn.upbtn:hover {
+  filter: brightness(1.2);
+}
+.upd {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 0;
+  color: var(--color-muted);
+  font-size: 12.5px;
 }
 .spin {
   animation: rot 0.9s linear infinite;

@@ -30,6 +30,7 @@ func main() {
 		ttl      = flag.Uint("ttl", 0, "劫持应答 TTL（秒），0 则取 env.json dns.ttl")
 		answer   = flag.String("answer", "", "劫持域名应答 IP（空则取 env.json dns.answer_ip）")
 		userFile = flag.String("user-rules", "", "用户自定义解析规则文件（默认 config/dns_hosts.txt）")
+		blFile   = flag.String("blacklist", "", "DNS 黑名单文件（每行一个域名，命中则不劫持直接转发上游；默认 config/dns_blacklist.txt）")
 		queryLog = flag.String("query-log", "", "查询日志文件路径（空则按 env.json dns.query_log 判定）")
 	)
 	flag.Parse()
@@ -118,6 +119,22 @@ func main() {
 		}
 	}
 
+	// DNS 黑名单（命中则跳过劫持、直接转发上游）。
+	blPath := *blFile
+	if blPath == "" && d.BlacklistFile != "" {
+		blPath = d.BlacklistFile
+	}
+	if blPath == "" {
+		blPath = filepath.Join(rootDir, "config", "dns_blacklist.txt")
+	}
+	if !filepath.IsAbs(blPath) {
+		blPath = filepath.Join(rootDir, blPath)
+	}
+	if pats, n := loadHostList(blPath); n > 0 {
+		opts = append(opts, dnsd.WithBlacklist(pats))
+		log.Printf("已加载 DNS 黑名单 %d 条: %s", n, blPath)
+	}
+
 	// 查询日志：flag 显式给路径 > env 开启 > 关闭。
 	if *queryLog != "" {
 		opts = append(opts, dnsd.WithQueryLogger(newFileLogger(*queryLog)))
@@ -144,6 +161,28 @@ func main() {
 
 // userPats 与 loadUserHosts 共用的最新条数（仅用于启动日志）。
 var userPats int
+
+// loadHostList 解析纯域名列表文件：每行一个域名（可带 *. 通配），#/空行忽略。
+func loadHostList(path string) ([]string, int) {
+	if path == "" {
+		return nil, 0
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, 0
+	}
+	defer f.Close()
+	var pats []string
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		pats = append(pats, line)
+	}
+	return pats, len(pats)
+}
 
 // loadUserHosts 解析 dns_hosts.txt：每行 "<域名或 *.域名> <IP>"，#/空行忽略。
 func loadUserHosts(path string) (map[string]string, int) {

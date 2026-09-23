@@ -51,6 +51,49 @@ function nextTheme() {
   }
 }
 
+// —— 界面缩放（复刻原版 uiScale；存 localStorage，浏览器侧生效）——
+const SCALES = [90, 100, 110, 125]
+const scale = ref(100)
+function applyScale(v) {
+  try {
+    localStorage.setItem('s302-scale', String(v))
+  } catch {}
+  document.documentElement.style.zoom = String(v / 100)
+}
+function nextScale() {
+  const i = SCALES.indexOf(scale.value)
+  const v = SCALES[(i + 1) % SCALES.length]
+  scale.value = v
+  applyScale(v)
+}
+
+// —— 浏览器通知（可选，服务状态变化时提醒）——
+const notifOn = ref(false)
+function askNotif() {
+  if (!('Notification' in window)) {
+    const el = document.getElementById('toast')
+    if (el) {
+      el.textContent = '当前浏览器不支持通知'
+      el.className = 'show warn'
+      el._t = setTimeout(() => (el.className = ''), 2000)
+    }
+    return
+  }
+  if (Notification.permission === 'granted') {
+    notifOn.value = !notifOn.value
+  } else {
+    Notification.requestPermission().then((p) => {
+      if (p === 'granted') {
+        notifOn.value = true
+        new Notification('Steamcommunity 302', { body: '已开启服务状态通知' })
+      }
+    })
+  }
+  try {
+    localStorage.setItem('s302-notif', notifOn.value ? '1' : '0')
+  } catch {}
+}
+
 function quit() {
   window.close()
   setTimeout(() => {
@@ -65,10 +108,43 @@ function quit() {
 }
 
 provide('reload', reloadAll)
-provide('reloadStatus', loadStatus)
+const wrapStatus = async () => {
+  await loadStatus()
+  watchFailures(store.status)
+}
+provide('reloadStatus', wrapStatus)
 
-onMounted(() => {
-  reloadAll().catch(() => {})
+// 服务状态通知：对比前后快照，检测服务转为失败/停止时提醒
+let prevSvcs = null
+function watchFailures(status) {
+  if (!notifOn.value || !status || !status.services) return
+  const svcs = status.services
+  const names = { fwd: '端口转发', caddy: 'Caddy', dnsd: 'DNS 服务' }
+  if (prevSvcs) {
+    for (const k of Object.keys(names)) {
+      const p = prevSvcs[k]
+      const c = svcs[k]
+      if (p === 'active' && c && c !== 'active') {
+        new Notification(names[k] + ' 停止', { body: '检测到服务异常停止，请到 服务 页查看。' })
+      }
+    }
+  }
+  prevSvcs = { ...svcs }
+}
+
+onMounted(async () => {
+  try {
+    const saved = parseInt(localStorage.getItem('s302-scale') || '100', 10)
+    if (SCALES.includes(saved)) {
+      scale.value = saved
+      applyScale(saved)
+    }
+  } catch {}
+  try {
+    notifOn.value = localStorage.getItem('s302-notif') === '1'
+  } catch {}
+  await reloadAll().catch(() => {})
+  watchFailures(store.status)
 })
 </script>
 
@@ -112,9 +188,17 @@ onMounted(() => {
           <h1 class="hd-title">{{ cur.label }}</h1>
           <span class="hd-sub">{{ cur.sub }}</span>
         </div>
-        <button class="theme" :title="'主题模式：' + THEME_LABEL[store.theme]" @click="nextTheme">
-          <span class="t-label">{{ THEME_LABEL[store.theme] }}</span>
-        </button>
+        <div class="hd-ops">
+          <button class="theme" :title="'界面缩放：' + scale + '%'" @click="nextScale">
+            <span class="t-label">{{ scale }}%</span>
+          </button>
+          <button class="theme" :title="notifOn ? '关闭服务状态通知' : '开启服务状态通知（需浏览器允许）'" @click="askNotif">
+            <span class="t-label">{{ notifOn ? '通知:开' : '通知' }}</span>
+          </button>
+          <button class="theme" :title="'主题模式：' + THEME_LABEL[store.theme]" @click="nextTheme">
+            <span class="t-label">{{ THEME_LABEL[store.theme] }}</span>
+          </button>
+        </div>
       </header>
       <div class="content">
         <div class="wrap">
@@ -276,6 +360,12 @@ onMounted(() => {
 .hd-sub {
   color: var(--color-faint);
   font-size: 12px;
+}
+.hd-ops {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
 }
 .theme {
   border: 1px solid var(--color-border);

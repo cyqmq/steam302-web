@@ -10,6 +10,7 @@ type Env struct {
 	Fwd              Fwd                        `json:"fwd"`
 	Prefer           PreferConfig               `json:"prefer"`
 	DNS              DNS                        `json:"dns"`
+	Update           Update                     `json:"update,omitempty"`
 	UpstreamDefaults map[string]json.RawMessage `json:"upstream_defaults"`
 	UI               UI                         `json:"ui,omitempty"`
 	Notes            string                     `json:"notes"`
@@ -24,12 +25,32 @@ type DNS struct {
 	AnswerIP     string   `json:"answer_ip,omitempty"`
 	QueryLog     bool     `json:"query_log,omitempty"`
 	QueryLogFile string   `json:"query_log_file,omitempty"`
-	UserRules    bool     `json:"user_rules,omitempty"`
-	UserRulesDir string   `json:"user_rules_file,omitempty"`
+UserRules    bool   `json:"user_rules,omitempty"`
+	UserRulesDir string `json:"user_rules_file,omitempty"`
+	// BlacklistFile 是"DNS CDN 黑名单"文件（每行一个域名）；命中则不劫持、
+	// 直接转发上游（对应原版 dns_blacklist.txt）。
+	BlacklistFile string `json:"blacklist_file,omitempty"`
+	// FirewallBackend 是局域网重定向的防火墙后端偏好（dnsredir 读取）：
+	// "" | iptables | nftables，缺省 auto 探测。
+	FirewallBackend string `json:"firewall_backend,omitempty"`
 	// ResolvManaged / LANRedirect 是 bin/dnsredir 施加的系统级重定向，
 	// 记录状态供 UI 展示（实际规则由 dnsredir 管理）。
 	ResolvManaged bool `json:"resolv_managed,omitempty"`
 	LANRedirect   bool `json:"lan_redirect,omitempty"`
+}
+
+// Update 是自动更新的发布源配置（cmd/update 与 webui 更新端点读取）。
+type Update struct {
+	// Repo 是 GitHub 仓库（owner/name），发布物来自其 releases/latest。
+	Repo string `json:"repo,omitempty"`
+	// AssetPrefix 是发布资产名称前缀，实际下载 "<prefix>.tar.gz" 与
+	// "<prefix>.sha256"。默认 steam302-web-linux-amd64。
+	AssetPrefix string `json:"asset_prefix,omitempty"`
+	// URLOverride 直接指定下载地址（tar.gz），并约定同路径 +".sha256" 为
+	// 校验文件；设置后跳过 GitHub API（用于镜像/私有分发）。
+	URLOverride string `json:"url_override,omitempty"`
+	// SkipVerify 为 true 时跳过 sha256 校验（仅调试用，默认 false）。
+	SkipVerify bool `json:"skip_verify,omitempty"`
 }
 
 // UI 是 Web 控制台「设置→启动行为」的偏好（对应原版桌面端的启动/退出行为；Web
@@ -76,8 +97,9 @@ type Fwd struct {
 }
 
 type FwdMap struct {
-	From int `json:"from"`
-	To   int `json:"to"`
+	From int  `json:"from"`
+	To   int  `json:"to"`
+	UDP  bool `json:"udp,omitempty"` // 同时做 UDP 中继（HTTP/3，443 默认开启）
 }
 
 type Listen struct {
@@ -86,6 +108,9 @@ type Listen struct {
 	BindIP    string `json:"bind_ip"`
 	AdminOff  bool   `json:"admin_off"`
 	AutoHTTPS string `json:"auto_https"`
+	// HTTP3 开启对外 HTTP/3（QUIC）：caddy 监听 https_port 的 UDP 并协商 h3，
+	// 浏览器 QUIC 流量经 fwd 的 UDP 中继到达 caddy。
+	HTTP3 bool `json:"http3,omitempty"`
 }
 
 type Cert struct {
