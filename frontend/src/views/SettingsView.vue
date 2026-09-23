@@ -468,7 +468,10 @@ const subdivisions = [
   { key: 'cdn', label: 'CDN', icon: Cloud },
   { key: 'system', label: '系统', icon: Shield }
 ]
-const sub = ref('general')
+const sub = computed({
+  get: () => store.settingsSub || 'general',
+  set: (v) => (store.settingsSub = v)
+})
 </script>
 
 <template>

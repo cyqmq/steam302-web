@@ -1,6 +1,6 @@
 <script setup>
 import { ref, shallowRef, provide, markRaw, onMounted, computed } from 'vue'
-import { Server, Settings, Activity, ScrollText, Info, Power, Repeat } from 'lucide-vue-next'
+import { Server, Settings, Activity, ScrollText, Info, Power } from 'lucide-vue-next'
 import ServicesView from './views/ServicesView.vue'
 import SettingsView from './views/SettingsView.vue'
 import ConnectionsView from './views/ConnectionsView.vue'
@@ -8,6 +8,7 @@ import LogsView from './views/LogsView.vue'
 import AboutView from './views/AboutView.vue'
 import { reloadAll, loadStatus } from './lib/data.js'
 import { store, setTheme } from './lib/state.js'
+import logoUrl from './assets/logo.png'
 
 const tabs = [
   { key: 'services', label: '服务', icon: Server, comp: markRaw(ServicesView), sub: '开关代理规则 · 服务控制' },
@@ -24,6 +25,15 @@ function onNav(t) {
   active.value = t.key
   body.value = t.comp
 }
+
+// 供各视图跳转到「设置」的指定子分区（复刻原版模式的「详细设置」入口）
+function goSettings(subKey) {
+  active.value = 'settings'
+  const s = tabs.find((t) => t.key === 'settings')
+  body.value = s.comp
+  store.settingsSub = subKey || 'general'
+}
+provide('goSettings', goSettings)
 
 const svcOn = () => {
   const s = store.status
@@ -150,62 +160,103 @@ onMounted(async () => {
 
 <template>
   <div class="app">
-    <aside class="side">
-      <div class="brand">
-        <span class="logo"><Repeat :size="17" /></span>
-        <div class="bn">
-          <div class="bt">Steamcommunity 302</div>
-          <div class="bs">Web 管理端 · v{{ versionText() }}</div>
-        </div>
+    <header class="topbar">
+      <div class="topbar-title">
+        <img class="logo-img" :src="logoUrl" alt="" draggable="false" />
+        <span class="title-main">Steamcommunity 302</span>
+        <span class="title-ver">V{{ versionText() }}</span>
       </div>
-
-      <nav class="nav">
+      <div class="window-controls" role="group" aria-label="窗口控制">
         <button
-          v-for="t in tabs"
-          :key="t.key"
-          class="navit"
-          :class="{ active: active === t.key }"
-          @click="onNav(t)"
+          class="wc-btn"
+          aria-label="通知"
+          :title="notifOn ? '关闭服务状态通知' : '开启服务状态通知（需浏览器允许）'"
+          @click="askNotif"
         >
-          <component :is="t.icon" :size="17" />
-          <span>{{ t.label }}</span>
+          <span class="wc-dot" :class="{ on: notifOn }"></span>
         </button>
-      </nav>
-
-      <div class="side-foot">
-        <div class="svc">
-          <span class="dot" :class="{ on: svcOn() }"></span>
-          <span class="conn">{{ svcOn() ? '已连接' : '未连接' }}</span>
-          <span class="cnt">{{ enabledCount }}/{{ totalCount }} 规则启用</span>
-        </div>
-        <button class="quit" @click="quit"><Power :size="14" /> 退出UI</button>
+        <button class="wc-btn" aria-label="界面缩放比例" :title="'界面缩放：' + scale + '%'" @click="nextScale">
+          <span class="t-label">{{ scale }}%</span>
+        </button>
+        <button
+          class="wc-btn"
+          :aria-label="'切换主题，当前' + THEME_LABEL[store.theme]"
+          :title="'主题模式：' + THEME_LABEL[store.theme]"
+          @click="nextTheme"
+        >
+          <span class="t-label">{{ THEME_LABEL[store.theme] }}</span>
+        </button>
+        <button class="wc-btn wc-quit" aria-label="退出 UI" title="退出 UI" @click="quit">
+          <Power :size="15" />
+        </button>
       </div>
-    </aside>
+    </header>
 
-    <main class="main">
-      <header class="hd">
-        <div class="hd-txt">
-          <h1 class="hd-title">{{ cur.label }}</h1>
-          <span class="hd-sub">{{ cur.sub }}</span>
-        </div>
-        <div class="hd-ops">
-          <button class="theme" :title="'界面缩放：' + scale + '%'" @click="nextScale">
-            <span class="t-label">{{ scale }}%</span>
+    <div class="frame">
+      <aside class="sidebar">
+        <nav class="primary-nav" aria-label="主导航">
+          <button
+            v-for="t in tabs"
+            :key="t.key"
+            class="nav-item"
+            :class="{ active: active === t.key }"
+            :aria-label="t.label"
+            @click="onNav(t)"
+          >
+            <span class="primary-nav__indicator"></span>
+            <component :is="t.icon" :size="16" />
+            <span class="nav-text">{{ t.label }}</span>
+            <span class="nav-state">{{ t.sub }}</span>
           </button>
-          <button class="theme" :title="notifOn ? '关闭服务状态通知' : '开启服务状态通知（需浏览器允许）'" @click="askNotif">
-            <span class="t-label">{{ notifOn ? '通知:开' : '通知' }}</span>
-          </button>
-          <button class="theme" :title="'主题模式：' + THEME_LABEL[store.theme]" @click="nextTheme">
-            <span class="t-label">{{ THEME_LABEL[store.theme] }}</span>
-          </button>
+        </nav>
+
+        <div class="sidebar-footer" :class="{ stacked: true }">
+          <div class="conn-status" aria-label="连接状态">
+            <span class="status-dot" :class="{ on: svcOn() }"></span>
+            <span class="conn">{{ svcOn() ? '已连接' : '未连接' }}</span>
+            <span class="cnt">{{ enabledCount }}/{{ totalCount }} 规则启用</span>
+          </div>
+          <button class="quit" aria-label="退出 UI" @click="quit"><Power :size="14" /> 退出 UI</button>
         </div>
-      </header>
-      <div class="content">
-        <div class="wrap">
-          <component :is="body" :key="active" />
+      </aside>
+
+      <main class="main">
+        <div class="content">
+          <div class="wrap">
+            <div class="hd">
+              <div class="hd-txt">
+                <h1 class="hd-title">{{ cur.label }}</h1>
+                <span class="hd-sub">{{ cur.sub }}</span>
+              </div>
+            </div>
+            <component :is="body" :key="active" />
+          </div>
         </div>
-      </div>
-    </main>
+        <footer class="statusbar">
+          <div class="statusbar-group">
+            <span class="statusbar-item" :class="{ 'statusbar-item--success': svcOn() }">
+              <span class="status-dot" :class="{ on: svcOn() }"></span>
+              连接状态：{{ svcOn() ? '已连接' : '未连接' }}
+            </span>
+          </div>
+          <div class="statusbar-group">
+            <span
+              v-for="(s, k) in store.status?.services || {}"
+              :key="k"
+              class="statusbar-item"
+              :class="s === 'active' ? 'statusbar-item--success' : s === 'failed' ? 'statusbar-item--warning' : ''"
+            >
+              {{ k }}：{{ s }}
+            </span>
+          </div>
+          <div class="statusbar-group">
+            <span class="statusbar-item">规则 {{ enabledCount }}/{{ totalCount }}</span>
+            <span class="statusbar-item">版本 v{{ versionText() }}</span>
+            <span class="statusbar-item">{{ scale }}% · {{ THEME_LABEL[store.theme] }}</span>
+          </div>
+        </footer>
+      </main>
+    </div>
 
     <div id="toast"></div>
   </div>
@@ -214,60 +265,120 @@ onMounted(async () => {
 <style scoped>
 .app {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  background: var(--color-bg);
 }
-.side {
-  width: 216px;
+/* —— 顶部标题栏（原版窗口区域） —— */
+.topbar {
+  flex: none;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 12px 0 14px;
+  background: var(--color-bg-soft);
+  border-bottom: 1px solid var(--color-border);
+}
+.topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  -webkit-app-region: drag;
+}
+.logo-img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex: none;
+}
+.title-main {
+  color: var(--color-strong);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.title-ver {
+  color: var(--color-faint);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-hover);
+  border: 1px solid var(--color-border);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.wc-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.wc-btn:hover {
+  background: var(--color-hover);
+  color: var(--color-strong);
+}
+.wc-btn.wc-quit:hover {
+  background: var(--color-primary-quiet, var(--color-primary-dim));
+  color: var(--color-off);
+}
+.wc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-faint);
+}
+.wc-dot.on {
+  background: var(--color-on);
+  box-shadow: 0 0 6px rgba(101, 183, 122, 0.7);
+}
+.frame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+/* —— 主导航侧栏 —— */
+.sidebar {
+  width: 214px;
   flex: none;
   background: var(--color-bg-soft);
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
 }
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 15px;
-}
-.logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, var(--color-primary-hi), var(--color-primary));
-  color: var(--on-accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-}
-.bt {
-  color: var(--color-strong);
-  font-weight: 700;
-  font-size: 13.5px;
-  line-height: 1.25;
-}
-.bs {
-  color: var(--color-faint);
-  font-size: 11px;
-  margin-top: 2px;
-}
-.nav {
+.primary-nav {
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   flex: 1;
+  overflow-y: auto;
 }
-.navit {
+.nav-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   border: 0;
   background: transparent;
   color: var(--color-muted);
-  padding: 10px 13px;
+  padding: 10px 12px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 13.5px;
@@ -275,25 +386,59 @@ onMounted(async () => {
   transition: all 0.12s;
   text-align: left;
 }
-.navit:hover {
+.nav-item:hover {
   background: var(--color-hover);
   color: var(--color-strong);
 }
-.navit.active {
+.nav-item svg {
+  flex: none;
+}
+.nav-item.active {
   background: var(--color-primary-dim);
   color: var(--color-strong);
 }
-.navit.active svg {
+.nav-item.active svg {
   color: var(--color-primary-hi);
 }
-.side-foot {
-  padding: 12px 10px;
+.primary-nav__indicator {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) scaleY(0);
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--color-primary-hi);
+  opacity: 0;
+  transition: all 0.15s;
+}
+.nav-item.active .primary-nav__indicator {
+  opacity: 1;
+  transform: translateY(-50%) scaleY(1);
+}
+.nav-text {
+  white-space: nowrap;
+}
+.nav-state {
+  margin-left: auto;
+  color: var(--color-faint);
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 74px;
+}
+.sidebar-footer {
+  padding: 10px 10px 12px;
   border-top: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   gap: 9px;
 }
-.svc {
+.sidebar-footer--stacked {
+  gap: 9px;
+}
+.conn-status {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -302,13 +447,14 @@ onMounted(async () => {
   padding: 0 4px;
   flex-wrap: wrap;
 }
-.dot {
+.status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--color-faint);
+  flex: none;
 }
-.dot.on {
+.status-dot.on {
   background: var(--color-on);
   box-shadow: 0 0 6px rgba(101, 183, 122, 0.6);
 }
@@ -344,12 +490,8 @@ onMounted(async () => {
   flex-direction: column;
 }
 .hd {
-  padding: 18px 26px 4px;
+  padding: 18px 26px 6px;
   flex: none;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
 }
 .hd-title {
   margin: 0;
@@ -361,34 +503,47 @@ onMounted(async () => {
   color: var(--color-faint);
   font-size: 12px;
 }
-.hd-ops {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-}
-.theme {
-  border: 1px solid var(--color-border);
-  background: var(--color-card);
-  border-radius: 6px;
-  color: var(--color-muted);
-  font-size: 12px;
-  padding: 6px 12px;
-  cursor: pointer;
-  flex: none;
-}
-.theme:hover {
-  color: var(--color-primary-hi);
-  border-color: var(--color-primary);
-}
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 26px 30px;
+  padding: 8px 26px 30px;
 }
 .wrap {
   max-width: 900px;
   margin: 0 auto;
+}
+/* —— 底部状态栏 —— */
+.statusbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 5px 14px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-soft);
+  font-size: 11.5px;
+  color: var(--color-faint);
+}
+.statusbar-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.statusbar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.statusbar-item--success {
+  color: var(--color-on);
+}
+.statusbar-item--warning {
+  color: var(--color-warn);
 }
 #toast {
   position: fixed;
@@ -405,7 +560,7 @@ onMounted(async () => {
   pointer-events: none;
   transition: all 0.25s;
   z-index: 99;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px var(--shadow-window);
 }
 #toast.show {
   opacity: 1;
@@ -416,5 +571,10 @@ onMounted(async () => {
 }
 #toast.err {
   border-color: var(--color-off);
+}
+@media (max-width: 760px) {
+  .nav-state {
+    display: none;
+  }
 }
 </style>

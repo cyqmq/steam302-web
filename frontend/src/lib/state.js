@@ -5,7 +5,8 @@ export const store = reactive({
   status: null,
   settings: null,
   version: null,
-  theme: localStorage.getItem('theme') || 'auto'
+  theme: localStorage.getItem('theme') || 'auto',
+  settingsSub: 'general'
 })
 
 export function toast(msg, kind = 'ok') {

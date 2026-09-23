@@ -10,6 +10,35 @@ import { store, toast } from '../lib/state.js'
 
 const reload = inject('reload', async () => {})
 const reloadStatus = inject('reloadStatus', async () => {})
+const goSettings = inject('goSettings', () => {})
+
+// —— 网络接管模式面板（对齐原版 mode-panel；「详细设置」跳转到设置对应分区）——
+const modes = computed(() => [
+  {
+    key: 'hosts',
+    icon: Pencil,
+    title: 'Hosts 模式',
+    desc: '为需要代理的域名写入 127.0.0.1 hosts 条目，支持泛域名与全局 CDN 优选（仅对代理连接生效）。',
+    on: !!store.status?.hosts_on,
+    sub: 'network'
+  },
+  {
+    key: 'dns',
+    icon: Globe,
+    title: 'DNS 重定向模式',
+    desc: '通过驱动或防火墙接管系统 DNS 查询，并由 S302 按规则返回解析结果。支持泛域名及全局 CDN 优选。',
+    on: !!(store.status?.dns_redirect || (store.dns && store.dns.active)),
+    sub: 'network'
+  },
+  {
+    key: 'proxy',
+    icon: Network,
+    title: '系统代理模式',
+    desc: '自动修改系统代理仅在桌面端可用；浏览器端可下载 proxy.pac 手动配置，按同样规则分流。',
+    on: false,
+    sub: 'network'
+  }
+])
 
 // 功能卡映射：id → { g(分组), t(标题), d(说明) }
 const FEAT = {
@@ -238,6 +267,28 @@ const comps = computed(() => {
 
 <template>
   <div class="svc-grid">
+    <div class="mode-panel">
+      <div class="mode-panel__hed">
+        <h4>网络接管模式</h4>
+        <span class="mode-panel__tip">
+          <component :is="Globe" :size="12" /> 包含泛域名，部分访问需要 DNS 重定向模式 / 系统代理模式
+        </span>
+      </div>
+      <div class="mode-panel__cards">
+        <div v-for="m in modes" :key="m.key" class="mode-card">
+          <component :is="m.icon" :size="16" class="mode-card__icon" />
+          <div class="mode-card__body">
+            <div class="mode-card__title">
+              <span><component :is="Globe" :size="11" /> {{ m.title }}</span>
+              <span class="mode-dot" :class="{ on: m.on }"></span>
+            </div>
+            <p class="mode-card__desc">{{ m.desc }}</p>
+          </div>
+          <button class="mode-card__go" @click="goSettings(m.sub)">详细设置 →</button>
+        </div>
+      </div>
+    </div>
+
     <div class="col-left">
       <div class="toolbar">
         <div class="stat"><b>{{ enabled }}</b><span>/{{ total }} 规则启用</span></div>
@@ -347,6 +398,106 @@ const comps = computed(() => {
   grid-template-columns: minmax(0, 1fr) 280px;
   gap: 18px;
   align-items: start;
+}
+/* —— 网络接管模式面板（对齐原版 mode-panel） —— */
+.mode-panel {
+  grid-column: 1 / -1;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px 14px 14px;
+}
+.mode-panel__hed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.mode-panel__hed h4 {
+  margin: 0;
+  color: var(--color-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+.mode-panel__tip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-faint);
+  font-size: 11.5px;
+}
+.mode-panel__cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.mode-card__icon {
+  color: var(--color-primary-hi);
+}
+.mode-card__body {
+  flex: 1;
+}
+.mode-card__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-strong);
+  font-size: 13px;
+  font-weight: 700;
+}
+.mode-card__title > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mode-card__desc {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.mode-card__go {
+  align-self: flex-start;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.mode-card__go:hover {
+  color: var(--color-primary-hi);
+  border-color: var(--color-primary);
+}
+.mode-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-faint);
+  display: inline-block;
+}
+.mode-dot.on {
+  background: var(--color-on);
+  box-shadow: 0 0 6px rgba(101, 183, 122, 0.6);
+}
+@media (max-width: 860px) {
+  .mode-panel__cards {
+    grid-template-columns: 1fr;
+  }
 }
 .col-right {
   position: sticky;
